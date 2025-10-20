@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm view vaul versions --json)",
+      "Bash(npm view vaul@1.1.2 peerDependencies)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
