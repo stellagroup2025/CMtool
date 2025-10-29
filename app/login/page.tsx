@@ -8,22 +8,49 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Sparkles } from "lucide-react"
+import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Mock login - redirect to brands page
-    router.push("/brands")
+    setIsLoading(true)
+
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        toast.error("Invalid email or password")
+      } else {
+        toast.success("Login successful!")
+        router.push("/brands")
+        router.refresh()
+      }
+    } catch (error) {
+      toast.error("An error occurred during login")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleGoogleLogin = () => {
-    // Mock Google login
-    router.push("/brands")
+  const handleGoogleLogin = async () => {
+    setIsLoading(true)
+    try {
+      await signIn("google", { callbackUrl: "/brands" })
+    } catch (error) {
+      toast.error("Google login failed")
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -71,8 +98,9 @@ export default function LoginPage() {
             <Button
               type="submit"
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+              disabled={isLoading}
             >
-              Continue
+              {isLoading ? "Loading..." : "Continue"}
             </Button>
           </form>
 
@@ -90,6 +118,7 @@ export default function LoginPage() {
             variant="outline"
             className="w-full border-border hover:bg-muted bg-transparent"
             onClick={handleGoogleLogin}
+            disabled={isLoading}
           >
             <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
               <path

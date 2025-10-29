@@ -2,7 +2,18 @@
   "permissions": {
     "allow": [
       "Bash(npm view vaul versions --json)",
-      "Bash(npm view vaul@1.1.2 peerDependencies)"
+      "Bash(npm view vaul@1.1.2 peerDependencies)",
+      "Bash(node -e \"console.log(require(''crypto'').randomBytes(32).toString(''base64''))\")",
+      "Bash(node -e \"console.log(require(''crypto'').randomBytes(32).toString(''hex''))\")",
+      "Bash(npm install)",
+      "Bash(npm view pusher versions --json)",
+      "Bash(docker --version)",
+      "Bash(npm run prisma:generate)",
+      "Bash(npm run prisma:migrate)",
+      "Bash(npm run db:push)",
+      "Bash(npm run db:seed)",
+      "WebFetch(domain:developers.facebook.com)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

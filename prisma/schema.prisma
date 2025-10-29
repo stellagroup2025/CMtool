@@ -1,0 +1,406 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x", "windows"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Role {
+  OWNER
+  MANAGER
+  ANALYST
+  AGENT
+}
+
+enum Platform {
+  INSTAGRAM
+  FACEBOOK
+  X
+  TIKTOK
+  LINKEDIN
+  YOUTUBE
+}
+
+enum PostStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  DELETED
+}
+
+enum PostItemStatus {
+  PENDING
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+}
+
+enum ConversationType {
+  DM
+  COMMENT
+  MENTION
+  REVIEW
+}
+
+enum ConversationStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum ConversationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum MessageFrom {
+  USER
+  BRAND
+  SYSTEM
+}
+
+// ============================================
+// USER & AUTH
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String? // For credentials auth
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts    Account[]
+  sessions    Session[]
+  memberships Membership[]
+  audits      Audit[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================
+// BRANDS & MEMBERSHIPS
+// ============================================
+
+model Brand {
+  id        String   @id @default(cuid())
+  name      String
+  logo      String?
+  slug      String   @unique
+  timezone  String   @default("Europe/Madrid")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  memberships     Membership[]
+  socialAccounts  SocialAccount[]
+  posts           Post[]
+  conversations   Conversation[]
+  audits          Audit[]
+
+  @@index([slug])
+  @@map("brands")
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  brandId   String
+  role      Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, brandId])
+  @@index([brandId, role])
+  @@map("memberships")
+}
+
+// ============================================
+// SOCIAL ACCOUNTS
+// ============================================
+
+model SocialAccount {
+  id                 String   @id @default(cuid())
+  brandId            String
+  platform           Platform
+  platformAccountId  String // External ID from the platform
+  username           String
+  displayName        String?
+  avatar             String?
+  accessToken        String   @db.Text // Encrypted
+  refreshToken       String?  @db.Text // Encrypted
+  tokenExpiresAt     DateTime?
+  metadata           Json? // Platform-specific data
+  isActive           Boolean  @default(true)
+  lastSyncAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  brand         Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  postItems     PostItem[]
+  conversations Conversation[]
+  dailyMetrics  AccountDailyMetrics[]
+
+  @@unique([platform, platformAccountId])
+  @@index([brandId, platform])
+  @@index([brandId, isActive])
+  @@map("social_accounts")
+}
+
+// ============================================
+// POSTS & SCHEDULING
+// ============================================
+
+model Post {
+  id          String     @id @default(cuid())
+  brandId     String
+  status      PostStatus @default(DRAFT)
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  createdById String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  brand     Brand      @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  items     PostItem[]
+  approvals Approval[]
+
+  @@index([brandId, status])
+  @@index([brandId, scheduledAt])
+  @@index([scheduledAt])
+  @@map("posts")
+}
+
+model PostItem {
+  id              String         @id @default(cuid())
+  postId          String
+  socialAccountId String
+  platform        Platform
+  content         String         @db.Text
+  mediaUrls       String[] // Array of S3 URLs
+  hashtags        String[]
+  status          PostItemStatus @default(PENDING)
+  externalPostId  String? // ID from the platform after publishing
+  publishedAt     DateTime?
+  failureReason   String?        @db.Text
+  metadata        Json? // Platform-specific data
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  post          Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  metrics       PostMetrics[]
+
+  @@index([postId])
+  @@index([socialAccountId, status])
+  @@index([status, publishedAt])
+  @@map("post_items")
+}
+
+model PostMetrics {
+  id         String   @id @default(cuid())
+  postItemId String
+  likes      Int      @default(0)
+  comments   Int      @default(0)
+  shares     Int      @default(0)
+  views      Int      @default(0)
+  reach      Int      @default(0)
+  engagement Float    @default(0)
+  clicks     Int      @default(0)
+  saves      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  postItem PostItem @relation(fields: [postItemId], references: [id], onDelete: Cascade)
+
+  @@index([postItemId])
+  @@index([updatedAt])
+  @@map("post_metrics")
+}
+
+model Approval {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  approved  Boolean
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@map("approvals")
+}
+
+// ============================================
+// INBOX & CONVERSATIONS
+// ============================================
+
+model Conversation {
+  id                 String               @id @default(cuid())
+  brandId            String
+  socialAccountId    String
+  platform           Platform
+  type               ConversationType
+  externalId         String // External conversation/thread ID
+  fromUserId         String? // External user ID
+  fromUsername       String
+  fromDisplayName    String?
+  fromAvatar         String?
+  status             ConversationStatus   @default(NEW)
+  priority           ConversationPriority @default(MEDIUM)
+  sentiment          Sentiment?
+  lastMessageAt      DateTime
+  slaDeadline        DateTime?
+  tags               String[]
+  metadata           Json? // Platform-specific data
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  brand         Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  messages      Message[]
+
+  @@unique([platform, externalId])
+  @@index([brandId, status])
+  @@index([brandId, updatedAt])
+  @@index([socialAccountId, status])
+  @@map("conversations")
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String
+  from           MessageFrom
+  externalId     String? // External message ID
+  content        String      @db.Text
+  mediaUrls      String[]
+  metadata       Json?
+  createdAt      DateTime    @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// ============================================
+// ANALYTICS
+// ============================================
+
+model AccountDailyMetrics {
+  id              String   @id @default(cuid())
+  socialAccountId String
+  date            DateTime @db.Date
+  followers       Int      @default(0)
+  following       Int      @default(0)
+  posts           Int      @default(0)
+  likes           Int      @default(0)
+  comments        Int      @default(0)
+  shares          Int      @default(0)
+  views           Int      @default(0)
+  reach           Int      @default(0)
+  impressions     Int      @default(0)
+  engagement      Float    @default(0)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([socialAccountId, date])
+  @@index([socialAccountId, date])
+  @@map("account_daily_metrics")
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model Audit {
+  id        String   @id @default(cuid())
+  brandId   String
+  userId    String?
+  action    String // "post.publish", "account.connect", "inbox.reply", etc.
+  resource  String? // Resource ID (postId, accountId, etc.)
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([brandId, createdAt])
+  @@index([userId, createdAt])
+  @@map("audits")
+}
