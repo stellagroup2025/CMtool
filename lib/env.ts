@@ -39,6 +39,11 @@ const envSchema = z.object({
   // Encryption
   ENCRYPTION_KEY: z.string().min(40), // Base64 encoded 32 bytes
 
+  // Cloudinary (for media storage)
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+
   // App config
   APP_TIMEZONE: z.string().default("Europe/Madrid"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),

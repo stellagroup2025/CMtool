@@ -79,7 +79,7 @@ export async function getAllRecentComments(brandId: string, limit: number = 50) 
     for (const media of mediaData.data || []) {
       if (media.comments_count > 0) {
         const commentsResponse = await fetch(
-          `https://graph.facebook.com/v19.0/${media.id}/comments?fields=id,text,username,timestamp,like_count&limit=10&access_token=${accessToken}`
+          `https://graph.facebook.com/v19.0/${media.id}/comments?fields=id,text,username,timestamp,like_count,replies{id,text,username,timestamp,like_count}&limit=10&access_token=${accessToken}`
         )
 
         if (commentsResponse.ok) {
@@ -87,6 +87,7 @@ export async function getAllRecentComments(brandId: string, limit: number = 50) 
           for (const comment of commentsData.data || []) {
             allComments.push({
               ...comment,
+              replies: comment.replies?.data || [],
               media: {
                 id: media.id,
                 caption: media.caption,
@@ -283,6 +284,56 @@ export async function hideComment(brandId: string, commentId: string) {
     }
   } catch (error: any) {
     logger.error({ error }, "Error hiding comment")
+    return { success: false, error: error.message }
+  }
+}
+
+export async function unhideComment(brandId: string, commentId: string) {
+  try {
+    const account = await prisma.socialAccount.findFirst({
+      where: {
+        brandId,
+        platform: "INSTAGRAM",
+        isActive: true,
+      },
+    })
+
+    if (!account) {
+      return { success: false, error: "No Instagram account connected" }
+    }
+
+    const accessToken = decrypt(account.accessToken)
+
+    const params = new URLSearchParams({
+      hide: "false",
+      access_token: accessToken,
+    })
+
+    const response = await fetch(
+      `https://graph.facebook.com/v19.0/${commentId}`,
+      {
+        method: "POST",
+        body: params,
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      logger.error({ error }, "Failed to unhide comment")
+      return {
+        success: false,
+        error: error.error?.message || "Failed to unhide comment",
+      }
+    }
+
+    logger.info({ commentId }, "Comment unhidden successfully")
+
+    return {
+      success: true,
+      message: "Comment is now visible again!",
+    }
+  } catch (error: any) {
+    logger.error({ error }, "Error unhiding comment")
     return { success: false, error: error.message }
   }
 }

@@ -19,6 +19,9 @@ import {
   Calendar,
   BarChart3,
   Send,
+  Inbox,
+  AtSign,
+  Video,
 } from "lucide-react"
 import { getInstagramData, getMediaInsights } from "./actions"
 import { format } from "date-fns"
@@ -141,7 +144,7 @@ export default function InstagramPage() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-border pb-2">
+      <div className="flex items-center gap-2 border-b border-border pb-2 overflow-x-auto">
         <Button
           variant="secondary"
           size="sm"
@@ -173,6 +176,38 @@ export default function InstagramPage() {
         >
           <Send className="mr-2 h-4 w-4" />
           Publish
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/dashboard/${brandId}/instagram/schedule`)}
+        >
+          <Calendar className="mr-2 h-4 w-4" />
+          Schedule
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/dashboard/${brandId}/instagram/inbox`)}
+        >
+          <Inbox className="mr-2 h-4 w-4" />
+          Inbox
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/dashboard/${brandId}/instagram/mentions`)}
+        >
+          <AtSign className="mr-2 h-4 w-4" />
+          Mentions
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/dashboard/${brandId}/instagram/stories`)}
+        >
+          <Video className="mr-2 h-4 w-4" />
+          Stories
         </Button>
       </div>
 

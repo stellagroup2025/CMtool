@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -21,9 +22,34 @@ import {
   BarChart3,
   Image as ImageIcon,
   Send,
+  Reply,
+  EyeOff,
+  Eye,
+  Trash2,
+  MoreVertical,
+  Calendar,
+  Inbox,
+  AtSign,
+  Video,
 } from "lucide-react"
-import { getAllRecentComments, getCommentStats } from "./actions"
+import { getAllRecentComments, getCommentStats, replyToComment, hideComment, unhideComment, deleteComment } from "./actions"
 import { format, formatDistanceToNow } from "date-fns"
+import { toast } from "sonner"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 export default function CommentsPage() {
   const params = useParams()
@@ -35,6 +61,10 @@ export default function CommentsPage() {
   const [stats, setStats] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [replyDialogOpen, setReplyDialogOpen] = useState(false)
+  const [selectedComment, setSelectedComment] = useState<any>(null)
+  const [replyText, setReplyText] = useState("")
+  const [isReplying, setIsReplying] = useState(false)
 
   const loadData = async () => {
     setLoading(true)
@@ -61,6 +91,67 @@ export default function CommentsPage() {
   useEffect(() => {
     loadData()
   }, [brandId])
+
+  const handleReplyClick = (comment: any) => {
+    setSelectedComment(comment)
+    setReplyText("")
+    setReplyDialogOpen(true)
+  }
+
+  const handleSendReply = async () => {
+    if (!replyText.trim() || !selectedComment) return
+
+    setIsReplying(true)
+    const result = await replyToComment(brandId, selectedComment.id, replyText)
+
+    if (result.success) {
+      toast.success("Reply sent successfully")
+      setReplyDialogOpen(false)
+      setReplyText("")
+      setSelectedComment(null)
+      loadData() // Reload comments
+    } else {
+      toast.error(result.error || "Failed to send reply")
+    }
+    setIsReplying(false)
+  }
+
+  const handleHideComment = async (commentId: string) => {
+    const result = await hideComment(brandId, commentId)
+
+    if (result.success) {
+      toast.success("Comment hidden successfully")
+      loadData() // Reload comments
+    } else {
+      toast.error(result.error || "Failed to hide comment")
+    }
+  }
+
+  const handleUnhideComment = async (commentId: string) => {
+    const result = await unhideComment(brandId, commentId)
+
+    if (result.success) {
+      toast.success("Comment is now visible again")
+      loadData() // Reload comments
+    } else {
+      toast.error(result.error || "Failed to unhide comment")
+    }
+  }
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm("Are you sure you want to delete this comment? This action cannot be undone.")) {
+      return
+    }
+
+    const result = await deleteComment(brandId, commentId)
+
+    if (result.success) {
+      toast.success("Comment deleted successfully")
+      loadData() // Reload comments
+    } else {
+      toast.error(result.error || "Failed to delete comment")
+    }
+  }
 
   const filteredComments = comments.filter((comment) =>
     comment.text?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -135,7 +226,7 @@ export default function CommentsPage() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-border pb-2">
+      <div className="flex items-center gap-2 border-b border-border pb-2 overflow-x-auto">
         <Button
           variant="ghost"
           size="sm"
@@ -167,6 +258,38 @@ export default function CommentsPage() {
         >
           <Send className="mr-2 h-4 w-4" />
           Publish
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/dashboard/${brandId}/instagram/schedule`)}
+        >
+          <Calendar className="mr-2 h-4 w-4" />
+          Schedule
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/dashboard/${brandId}/instagram/inbox`)}
+        >
+          <Inbox className="mr-2 h-4 w-4" />
+          Inbox
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/dashboard/${brandId}/instagram/mentions`)}
+        >
+          <AtSign className="mr-2 h-4 w-4" />
+          Mentions
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/dashboard/${brandId}/instagram/stories`)}
+        >
+          <Video className="mr-2 h-4 w-4" />
+          Stories
         </Button>
       </div>
 
@@ -335,16 +458,77 @@ export default function CommentsPage() {
 
                         {/* Actions */}
                         <div className="flex gap-2">
-                          <Button variant="outline" size="sm" disabled>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReplyClick(comment)}
+                          >
+                            <Reply className="mr-2 h-4 w-4" />
                             Reply
-                            <Badge className="ml-2" variant="secondary">
-                              Soon
-                            </Badge>
                           </Button>
-                          <Button variant="ghost" size="sm" disabled>
-                            <Heart className="h-4 w-4" />
-                          </Button>
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleHideComment(comment.id)}>
+                                <EyeOff className="mr-2 h-4 w-4" />
+                                Hide Comment
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleUnhideComment(comment.id)}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                Unhide Comment
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteComment(comment.id)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete Comment
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
+
+                        {/* Replies Section */}
+                        {comment.replies && comment.replies.length > 0 && (
+                          <div className="mt-4 pl-6 border-l-2 border-border space-y-3">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase">
+                              {comment.replies.length} {comment.replies.length === 1 ? 'Reply' : 'Replies'}
+                            </p>
+                            {comment.replies.map((reply: any) => (
+                              <div key={reply.id} className="space-y-2">
+                                <div className="flex items-start gap-2">
+                                  <Avatar className="h-6 w-6">
+                                    <AvatarFallback className="text-xs">
+                                      {reply.username?.charAt(0).toUpperCase() || "U"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-semibold text-xs">@{reply.username}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {formatDistanceToNow(new Date(reply.timestamp), {
+                                          addSuffix: true,
+                                        })}
+                                      </p>
+                                      {reply.like_count > 0 && (
+                                        <Badge variant="secondary" className="gap-1 text-xs">
+                                          <Heart className="h-2 w-2" />
+                                          {reply.like_count}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-sm mt-1">{reply.text}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -374,14 +558,67 @@ export default function CommentsPage() {
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />
-            Want to reply to comments?
+            Comment Management Active
           </CardTitle>
           <CardDescription>
-            To reply to comments, you need the <code>instagram_manage_comments</code> permission.
-            Update your app permissions in Meta Business settings.
+            You can now reply to, hide, or delete comments. Note: You need the <code>instagram_manage_comments</code> permission
+            activated in your Meta Business app settings for these actions to work.
           </CardDescription>
         </CardHeader>
       </Card>
+
+      {/* Reply Dialog */}
+      <Dialog open={replyDialogOpen} onOpenChange={setReplyDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reply to Comment</DialogTitle>
+            <DialogDescription>
+              Reply to @{selectedComment?.username}'s comment
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedComment && (
+            <div className="space-y-4">
+              {/* Original Comment */}
+              <div className="bg-muted p-3 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback className="text-xs">
+                      {selectedComment.username?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium">@{selectedComment.username}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">{selectedComment.text}</p>
+              </div>
+
+              {/* Reply Input */}
+              <div className="space-y-2">
+                <Label>Your Reply</Label>
+                <Textarea
+                  placeholder="Write your reply..."
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setReplyDialogOpen(false)}
+              disabled={isReplying}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSendReply} disabled={!replyText.trim() || isReplying}>
+              {isReplying ? "Sending..." : "Send Reply"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

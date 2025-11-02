@@ -17,6 +17,7 @@ import {
   Search,
   LogOut,
   Instagram,
+  Images,
 } from "lucide-react"
 import { signOut, useSession } from "next-auth/react"
 import type React from "react"
@@ -24,6 +25,7 @@ import type React from "react"
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Instagram", href: "/instagram", icon: Instagram },
+  { name: "Media Library", href: "/media", icon: Images },
   { name: "Inbox", href: "/inbox", icon: Inbox },
   { name: "Calendar", href: "/calendar", icon: Calendar },
   { name: "Create Post", href: "/create", icon: PenSquare },

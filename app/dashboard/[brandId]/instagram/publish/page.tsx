@@ -1,173 +1,386 @@
 "use client"
 
-import { useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import {
-  Image as ImageIcon,
-  Video,
-  Layout,
-  Film,
-  Send,
-  Plus,
-  X,
-  AlertCircle,
-  CheckCircle,
-  Loader2,
-  MessageSquare,
-  BarChart3,
-  InfoIcon,
-} from "lucide-react"
-import { publishPhoto, publishVideo, publishCarousel, publishReel } from "./actions"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Loader2, Image as ImageIcon, Video, Images, CheckCircle2, XCircle, Upload, X, Folder } from "lucide-react"
+
+interface InstagramAccount {
+  id: string
+  username: string
+  displayName: string | null
+  avatar: string | null
+}
 
 export default function PublishPage() {
   const params = useParams()
-  const router = useRouter()
   const brandId = params.brandId as string
 
-  // Photo state
-  const [photoUrl, setPhotoUrl] = useState("")
-  const [photoCaption, setPhotoCaption] = useState("")
-  const [photoLoading, setPhotoLoading] = useState(false)
-  const [photoResult, setPhotoResult] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [uploadingFile, setUploadingFile] = useState(false)
+  const [loadingAccounts, setLoadingAccounts] = useState(true)
+  const [result, setResult] = useState<{ success: boolean; message?: string; error?: string } | null>(null)
 
-  // Video state
-  const [videoUrl, setVideoUrl] = useState("")
-  const [videoCaption, setVideoCaption] = useState("")
-  const [videoLoading, setVideoLoading] = useState(false)
-  const [videoResult, setVideoResult] = useState<any>(null)
+  // Instagram accounts
+  const [accounts, setAccounts] = useState<InstagramAccount[]>([])
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("")
 
-  // Carousel state
-  const [carouselItems, setCarouselItems] = useState<Array<{ type: "IMAGE" | "VIDEO"; url: string }>>([
-    { type: "IMAGE", url: "" },
-  ])
-  const [carouselCaption, setCarouselCaption] = useState("")
-  const [carouselLoading, setCarouselLoading] = useState(false)
-  const [carouselResult, setCarouselResult] = useState<any>(null)
+  // Media Library
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false)
+  const [libraryImages, setLibraryImages] = useState<any[]>([])
+  const [loadingLibrary, setLoadingLibrary] = useState(false)
+
+  // Image state
+  const [imageUrl, setImageUrl] = useState("")
+  const [imageCaption, setImageCaption] = useState("")
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
 
   // Reel state
-  const [reelUrl, setReelUrl] = useState("")
+  const [reelVideoUrl, setReelVideoUrl] = useState("")
   const [reelCaption, setReelCaption] = useState("")
   const [reelCoverUrl, setReelCoverUrl] = useState("")
-  const [reelLoading, setReelLoading] = useState(false)
-  const [reelResult, setReelResult] = useState<any>(null)
+  const [reelVideoFile, setReelVideoFile] = useState<File | null>(null)
+  const [reelCoverFile, setReelCoverFile] = useState<File | null>(null)
+  const [shareToFeed, setShareToFeed] = useState(true)
 
-  const handlePublishPhoto = async () => {
-    if (!photoUrl) {
-      setPhotoResult({ success: false, error: "Please provide an image URL" })
-      return
+  // Carousel state
+  const [carouselItems, setCarouselItems] = useState([
+    { imageUrl: "", videoUrl: "", file: null as File | null },
+    { imageUrl: "", videoUrl: "", file: null as File | null },
+  ])
+  const [carouselCaption, setCarouselCaption] = useState("")
+
+  const resetForm = () => {
+    setImageUrl("")
+    setImageCaption("")
+    setImageFile(null)
+    setImagePreview(null)
+    setReelVideoUrl("")
+    setReelCaption("")
+    setReelCoverUrl("")
+    setReelVideoFile(null)
+    setReelCoverFile(null)
+    setCarouselItems([
+      { imageUrl: "", videoUrl: "", file: null },
+      { imageUrl: "", videoUrl: "", file: null },
+    ])
+    setCarouselCaption("")
+  }
+
+  // Upload file to server
+  const uploadFile = async (file: File): Promise<string> => {
+    const formData = new FormData()
+    formData.append("file", file)
+
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || "Failed to upload file")
     }
 
-    setPhotoLoading(true)
-    setPhotoResult(null)
+    const data = await response.json()
+    return data.url
+  }
 
-    const result = await publishPhoto(brandId, photoUrl, photoCaption)
-    setPhotoResult(result)
-    setPhotoLoading(false)
-
-    if (result.success) {
-      setTimeout(() => {
-        setPhotoUrl("")
-        setPhotoCaption("")
-        setPhotoResult(null)
-      }, 3000)
+  // Handle image file selection
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setImageFile(file)
+      // Create preview
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
     }
   }
 
-  const handlePublishVideo = async () => {
-    if (!videoUrl) {
-      setVideoResult({ success: false, error: "Please provide a video URL" })
-      return
-    }
-
-    setVideoLoading(true)
-    setVideoResult(null)
-
-    const result = await publishVideo(brandId, videoUrl, videoCaption)
-    setVideoResult(result)
-    setVideoLoading(false)
-
-    if (result.success) {
-      setTimeout(() => {
-        setVideoUrl("")
-        setVideoCaption("")
-        setVideoResult(null)
-      }, 3000)
+  // Handle reel video file selection
+  const handleReelVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setReelVideoFile(file)
     }
   }
 
-  const handlePublishCarousel = async () => {
-    const validItems = carouselItems.filter((item) => item.url.trim() !== "")
+  // Handle reel cover file selection
+  const handleReelCoverFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setReelCoverFile(file)
+    }
+  }
 
-    if (validItems.length < 2) {
-      setCarouselResult({ success: false, error: "Carousel must have at least 2 items" })
+  // Handle carousel item file selection
+  const handleCarouselFileChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const newItems = [...carouselItems]
+      newItems[index].file = file
+      setCarouselItems(newItems)
+    }
+  }
+
+  // Load Instagram accounts on mount
+  useEffect(() => {
+    const loadAccounts = async () => {
+      setLoadingAccounts(true)
+      try {
+        const response = await fetch(`/api/instagram/accounts?brandId=${brandId}`)
+        if (response.ok) {
+          const data = await response.json()
+          setAccounts(data.accounts || [])
+          // Auto-select first account if available
+          if (data.accounts && data.accounts.length > 0) {
+            setSelectedAccountId(data.accounts[0].id)
+          }
+        }
+      } catch (error) {
+        console.error("Error loading Instagram accounts:", error)
+      } finally {
+        setLoadingAccounts(false)
+      }
+    }
+
+    loadAccounts()
+  }, [brandId])
+
+  // Load media library images
+  const loadMediaLibrary = async () => {
+    setLoadingLibrary(true)
+    try {
+      const response = await fetch(`/api/media/list?brandId=${brandId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setLibraryImages(data.images || [])
+      }
+    } catch (error) {
+      console.error("Error loading media library:", error)
+    } finally {
+      setLoadingLibrary(false)
+    }
+  }
+
+  // Open media library modal
+  const openMediaLibrary = () => {
+    setShowMediaLibrary(true)
+    loadMediaLibrary()
+  }
+
+  // Select image from library
+  const selectFromLibrary = (url: string) => {
+    setImageUrl(url)
+    setShowMediaLibrary(false)
+    setImageFile(null)
+    setImagePreview(null)
+  }
+
+  const handlePublishImage = async () => {
+    if (!imageUrl && !imageFile) {
+      setResult({ success: false, error: "Please provide an image URL or select a file" })
       return
     }
 
-    if (validItems.length > 10) {
-      setCarouselResult({ success: false, error: "Carousel can have maximum 10 items" })
+    if (!selectedAccountId) {
+      setResult({ success: false, error: "Please select an Instagram account" })
       return
     }
 
-    setCarouselLoading(true)
-    setCarouselResult(null)
+    setLoading(true)
+    setResult(null)
 
-    const result = await publishCarousel(brandId, validItems, carouselCaption)
-    setCarouselResult(result)
-    setCarouselLoading(false)
+    try {
+      let finalImageUrl = imageUrl
 
-    if (result.success) {
-      setTimeout(() => {
-        setCarouselItems([{ type: "IMAGE", url: "" }])
-        setCarouselCaption("")
-        setCarouselResult(null)
-      }, 3000)
+      // Upload file if selected
+      if (imageFile) {
+        setUploadingFile(true)
+        finalImageUrl = await uploadFile(imageFile)
+        setUploadingFile(false)
+      }
+
+      const response = await fetch("/api/instagram/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "image",
+          brandId,
+          socialAccountId: selectedAccountId,
+          imageUrl: finalImageUrl,
+          caption: imageCaption || undefined,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setResult({ success: true, message: `Image published successfully! Post ID: ${data.postId}` })
+        resetForm()
+      } else {
+        setResult({ success: false, error: data.error || "Failed to publish image" })
+      }
+    } catch (error: any) {
+      setResult({ success: false, error: error.message || "An error occurred" })
+    } finally {
+      setLoading(false)
+      setUploadingFile(false)
     }
   }
 
   const handlePublishReel = async () => {
-    if (!reelUrl) {
-      setReelResult({ success: false, error: "Please provide a video URL" })
+    if (!reelVideoUrl && !reelVideoFile) {
+      setResult({ success: false, error: "Please provide a video URL or select a file" })
       return
     }
 
-    setReelLoading(true)
-    setReelResult(null)
+    if (!selectedAccountId) {
+      setResult({ success: false, error: "Please select an Instagram account" })
+      return
+    }
 
-    const result = await publishReel(brandId, reelUrl, reelCaption, reelCoverUrl || undefined)
-    setReelResult(result)
-    setReelLoading(false)
+    setLoading(true)
+    setResult(null)
 
-    if (result.success) {
-      setTimeout(() => {
-        setReelUrl("")
-        setReelCaption("")
-        setReelCoverUrl("")
-        setReelResult(null)
-      }, 3000)
+    try {
+      let finalVideoUrl = reelVideoUrl
+      let finalCoverUrl = reelCoverUrl
+
+      // Upload files if selected
+      setUploadingFile(true)
+      if (reelVideoFile) {
+        finalVideoUrl = await uploadFile(reelVideoFile)
+      }
+      if (reelCoverFile) {
+        finalCoverUrl = await uploadFile(reelCoverFile)
+      }
+      setUploadingFile(false)
+
+      const response = await fetch("/api/instagram/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "reel",
+          brandId,
+          socialAccountId: selectedAccountId,
+          videoUrl: finalVideoUrl,
+          caption: reelCaption || undefined,
+          coverUrl: finalCoverUrl || undefined,
+          shareToFeed,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setResult({ success: true, message: `Reel published successfully! Post ID: ${data.postId}` })
+        resetForm()
+      } else {
+        setResult({ success: false, error: data.error || "Failed to publish reel" })
+      }
+    } catch (error: any) {
+      setResult({ success: false, error: error.message || "An error occurred" })
+    } finally {
+      setLoading(false)
+      setUploadingFile(false)
+    }
+  }
+
+  const handlePublishCarousel = async () => {
+    const validItems = carouselItems.filter(item => item.imageUrl || item.videoUrl || item.file)
+
+    if (validItems.length < 2) {
+      setResult({ success: false, error: "Please provide at least 2 items for the carousel" })
+      return
+    }
+
+    if (validItems.length > 10) {
+      setResult({ success: false, error: "Carousel can have at most 10 items" })
+      return
+    }
+
+    if (!selectedAccountId) {
+      setResult({ success: false, error: "Please select an Instagram account" })
+      return
+    }
+
+    setLoading(true)
+    setResult(null)
+
+    try {
+      // Upload files if present
+      setUploadingFile(true)
+      const processedItems = await Promise.all(
+        validItems.map(async (item) => {
+          if (item.file) {
+            const url = await uploadFile(item.file)
+            return {
+              imageUrl: item.file.type.startsWith("image/") ? url : undefined,
+              videoUrl: item.file.type.startsWith("video/") ? url : undefined,
+            }
+          }
+          return {
+            imageUrl: item.imageUrl || undefined,
+            videoUrl: item.videoUrl || undefined,
+          }
+        })
+      )
+      setUploadingFile(false)
+
+      const response = await fetch("/api/instagram/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "carousel",
+          brandId,
+          socialAccountId: selectedAccountId,
+          items: processedItems,
+          caption: carouselCaption || undefined,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setResult({ success: true, message: `Carousel published successfully! Post ID: ${data.postId}` })
+        resetForm()
+      } else {
+        setResult({ success: false, error: data.error || "Failed to publish carousel" })
+      }
+    } catch (error: any) {
+      setResult({ success: false, error: error.message || "An error occurred" })
+    } finally {
+      setLoading(false)
+      setUploadingFile(false)
     }
   }
 
   const addCarouselItem = () => {
     if (carouselItems.length < 10) {
-      setCarouselItems([...carouselItems, { type: "IMAGE", url: "" }])
+      setCarouselItems([...carouselItems, { imageUrl: "", videoUrl: "", file: null }])
     }
   }
 
   const removeCarouselItem = (index: number) => {
-    if (carouselItems.length > 1) {
+    if (carouselItems.length > 2) {
       setCarouselItems(carouselItems.filter((_, i) => i !== index))
     }
   }
 
-  const updateCarouselItem = (index: number, field: "type" | "url", value: any) => {
+  const updateCarouselItem = (index: number, field: "imageUrl" | "videoUrl", value: string) => {
     const newItems = [...carouselItems]
     newItems[index][field] = value
     setCarouselItems(newItems)
@@ -175,342 +388,179 @@ export default function PublishPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Publish Content</h1>
-          <p className="text-muted-foreground mt-1">
-            Create and publish content to Instagram
-          </p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">Publish Content</h1>
+        <p className="text-muted-foreground mt-1">
+          Publish images, reels, and carousels to Instagram
+        </p>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-border pb-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/${brandId}/instagram`)}
-        >
-          <ImageIcon className="mr-2 h-4 w-4" />
-          Feed
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/${brandId}/instagram/comments`)}
-        >
-          <MessageSquare className="mr-2 h-4 w-4" />
-          Comments
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/${brandId}/instagram/analytics`)}
-        >
-          <BarChart3 className="mr-2 h-4 w-4" />
-          Analytics
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          className="bg-primary/10 text-primary hover:bg-primary/20"
-        >
-          <Send className="mr-2 h-4 w-4" />
-          Publish
-        </Button>
-      </div>
+      {/* Account Selector */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-2">
+            <Label htmlFor="account-select">Instagram Account</Label>
+            {loadingAccounts ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm text-muted-foreground">Loading accounts...</span>
+              </div>
+            ) : accounts.length === 0 ? (
+              <Alert>
+                <AlertDescription>
+                  No Instagram accounts found. Please connect an Instagram account first.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                <SelectTrigger id="account-select">
+                  <SelectValue placeholder="Select an Instagram account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      <div className="flex items-center gap-2">
+                        <span>@{account.username}</span>
+                        {account.displayName && (
+                          <span className="text-muted-foreground">({account.displayName})</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Permission Info Banner */}
-      <Alert className="border-blue-500/50 bg-blue-500/5">
-        <InfoIcon className="h-4 w-4" />
-        <AlertTitle>Permissions Required</AlertTitle>
-        <AlertDescription>
-          To publish content, you need the <code>instagram_content_publish</code> and{" "}
-          <code>pages_manage_posts</code> permissions. Update your app permissions in Meta Business settings.
-        </AlertDescription>
-      </Alert>
+      {/* Result Alert */}
+      {result && (
+        <Alert variant={result.success ? "default" : "destructive"}>
+          {result.success ? (
+            <CheckCircle2 className="h-4 w-4" />
+          ) : (
+            <XCircle className="h-4 w-4" />
+          )}
+          <AlertDescription>
+            {result.success ? result.message : result.error}
+          </AlertDescription>
+        </Alert>
+      )}
 
-      {/* Publishing Tabs */}
-      <Tabs defaultValue="photo" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="photo">
+      <Tabs defaultValue="image" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="image">
             <ImageIcon className="mr-2 h-4 w-4" />
-            Photo
-          </TabsTrigger>
-          <TabsTrigger value="video">
-            <Video className="mr-2 h-4 w-4" />
-            Video
-          </TabsTrigger>
-          <TabsTrigger value="carousel">
-            <Layout className="mr-2 h-4 w-4" />
-            Carousel
+            Image
           </TabsTrigger>
           <TabsTrigger value="reel">
-            <Film className="mr-2 h-4 w-4" />
+            <Video className="mr-2 h-4 w-4" />
             Reel
+          </TabsTrigger>
+          <TabsTrigger value="carousel">
+            <Images className="mr-2 h-4 w-4" />
+            Carousel
           </TabsTrigger>
         </TabsList>
 
-        {/* Photo Tab */}
-        <TabsContent value="photo">
+        {/* Image Tab */}
+        <TabsContent value="image">
           <Card>
             <CardHeader>
-              <CardTitle>Publish Photo</CardTitle>
+              <CardTitle>Publish Image</CardTitle>
               <CardDescription>
-                Upload and publish a single photo to your Instagram feed
+                Share a single image to your Instagram feed
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* File Upload */}
               <div className="space-y-2">
-                <Label htmlFor="photo-url">Image URL *</Label>
-                <Input
-                  id="photo-url"
-                  placeholder="https://example.com/image.jpg"
-                  value={photoUrl}
-                  onChange={(e) => setPhotoUrl(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Publicly accessible URL to your image (JPEG or PNG, max 8MB, ratio 4:5 to 1.91:1)
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="photo-caption">Caption (optional)</Label>
-                <Textarea
-                  id="photo-caption"
-                  placeholder="Write a caption... #hashtags"
-                  value={photoCaption}
-                  onChange={(e) => setPhotoCaption(e.target.value)}
-                  rows={4}
-                  maxLength={2200}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {photoCaption.length}/2,200 characters
-                </p>
-              </div>
-
-              {photoResult && (
-                <Alert variant={photoResult.success ? "default" : "destructive"}>
-                  {photoResult.success ? (
-                    <CheckCircle className="h-4 w-4" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4" />
-                  )}
-                  <AlertTitle>{photoResult.success ? "Success!" : "Error"}</AlertTitle>
-                  <AlertDescription>
-                    {photoResult.message || photoResult.error}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <Button
-                onClick={handlePublishPhoto}
-                disabled={photoLoading || !photoUrl}
-                className="w-full"
-              >
-                {photoLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Publishing...
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Publish Photo
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Video Tab */}
-        <TabsContent value="video">
-          <Card>
-            <CardHeader>
-              <CardTitle>Publish Video</CardTitle>
-              <CardDescription>
-                Upload and publish a video to your Instagram feed
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="video-url">Video URL *</Label>
-                <Input
-                  id="video-url"
-                  placeholder="https://example.com/video.mp4"
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Publicly accessible URL to your video (MP4, max 100MB, 3-60 seconds)
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="video-caption">Caption (optional)</Label>
-                <Textarea
-                  id="video-caption"
-                  placeholder="Write a caption... #hashtags"
-                  value={videoCaption}
-                  onChange={(e) => setVideoCaption(e.target.value)}
-                  rows={4}
-                  maxLength={2200}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {videoCaption.length}/2,200 characters
-                </p>
-              </div>
-
-              {videoResult && (
-                <Alert variant={videoResult.success ? "default" : "destructive"}>
-                  {videoResult.success ? (
-                    <CheckCircle className="h-4 w-4" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4" />
-                  )}
-                  <AlertTitle>{videoResult.success ? "Success!" : "Error"}</AlertTitle>
-                  <AlertDescription>
-                    {videoResult.message || videoResult.error}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <Button
-                onClick={handlePublishVideo}
-                disabled={videoLoading || !videoUrl}
-                className="w-full"
-              >
-                {videoLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Publishing... (this may take a minute)
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Publish Video
-                  </>
-                )}
-              </Button>
-
-              <Alert>
-                <InfoIcon className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  Video publishing takes longer as Instagram needs to process the video first.
-                  This can take 1-2 minutes.
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Carousel Tab */}
-        <TabsContent value="carousel">
-          <Card>
-            <CardHeader>
-              <CardTitle>Publish Carousel</CardTitle>
-              <CardDescription>
-                Upload and publish multiple images/videos (2-10 items)
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <Label>Carousel Items (2-10 items required) *</Label>
-                {carouselItems.map((item, index) => (
-                  <div key={index} className="flex gap-2">
-                    <select
-                      className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={item.type}
-                      onChange={(e) =>
-                        updateCarouselItem(index, "type", e.target.value as "IMAGE" | "VIDEO")
-                      }
-                    >
-                      <option value="IMAGE">Image</option>
-                      <option value="VIDEO">Video</option>
-                    </select>
-                    <Input
-                      placeholder={`${item.type === "IMAGE" ? "Image" : "Video"} URL`}
-                      value={item.url}
-                      onChange={(e) => updateCarouselItem(index, "url", e.target.value)}
-                      className="flex-1"
-                    />
+                <Label htmlFor="image-file">Select Image from Computer</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="image-file"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageFileChange}
+                    className="cursor-pointer"
+                  />
+                  {imageFile && (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="icon"
-                      onClick={() => removeCarouselItem(index)}
-                      disabled={carouselItems.length === 1}
+                      onClick={() => {
+                        setImageFile(null)
+                        setImagePreview(null)
+                      }}
                     >
                       <X className="h-4 w-4" />
                     </Button>
+                  )}
+                </div>
+                {imagePreview && (
+                  <div className="mt-2">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="max-h-48 rounded-lg border"
+                    />
                   </div>
-                ))}
+                )}
+              </div>
+
+              <div className="text-center text-sm text-muted-foreground">OR</div>
+
+              {/* Choose from Library */}
+              <div className="space-y-2">
+                <Label>Choose from Media Library</Label>
                 <Button
+                  type="button"
                   variant="outline"
-                  onClick={addCarouselItem}
-                  disabled={carouselItems.length >= 10}
                   className="w-full"
+                  onClick={openMediaLibrary}
                 >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Item ({carouselItems.length}/10)
+                  <Folder className="mr-2 h-4 w-4" />
+                  Browse Library
                 </Button>
               </div>
 
+              <div className="text-center text-sm text-muted-foreground">OR</div>
+
+              {/* URL Input */}
               <div className="space-y-2">
-                <Label htmlFor="carousel-caption">Caption (optional)</Label>
-                <Textarea
-                  id="carousel-caption"
-                  placeholder="Write a caption... #hashtags"
-                  value={carouselCaption}
-                  onChange={(e) => setCarouselCaption(e.target.value)}
-                  rows={4}
-                  maxLength={2200}
+                <Label htmlFor="image-url">Image URL</Label>
+                <Input
+                  id="image-url"
+                  placeholder="https://example.com/image.jpg"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  disabled={!!imageFile}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {carouselCaption.length}/2,200 characters
+                  Or provide a public image URL
                 </p>
               </div>
 
-              {carouselResult && (
-                <Alert variant={carouselResult.success ? "default" : "destructive"}>
-                  {carouselResult.success ? (
-                    <CheckCircle className="h-4 w-4" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4" />
-                  )}
-                  <AlertTitle>{carouselResult.success ? "Success!" : "Error"}</AlertTitle>
-                  <AlertDescription>
-                    {carouselResult.message || carouselResult.error}
-                  </AlertDescription>
-                </Alert>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="image-caption">Caption</Label>
+                <Textarea
+                  id="image-caption"
+                  placeholder="Write a caption..."
+                  rows={4}
+                  value={imageCaption}
+                  onChange={(e) => setImageCaption(e.target.value)}
+                />
+              </div>
 
               <Button
-                onClick={handlePublishCarousel}
-                disabled={carouselLoading}
+                onClick={handlePublishImage}
+                disabled={loading || uploadingFile}
                 className="w-full"
               >
-                {carouselLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Publishing... (this may take a while)
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Publish Carousel
-                  </>
-                )}
+                {(loading || uploadingFile) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {uploadingFile ? "Uploading..." : loading ? "Publishing..." : "Publish Image"}
               </Button>
-
-              <Alert>
-                <InfoIcon className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  Carousel publishing takes longer, especially with videos. Each video must be
-                  processed before the carousel can be published.
-                </AlertDescription>
-              </Alert>
             </CardContent>
           </Card>
         </TabsContent>
@@ -521,93 +571,300 @@ export default function PublishPage() {
             <CardHeader>
               <CardTitle>Publish Reel</CardTitle>
               <CardDescription>
-                Upload and publish a short-form vertical video (Reel)
+                Share a video as a Reel (video will be processed by Instagram)
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Video File Upload */}
               <div className="space-y-2">
-                <Label htmlFor="reel-url">Video URL *</Label>
+                <Label htmlFor="reel-video-file">Select Video from Computer</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="reel-video-file"
+                    type="file"
+                    accept="video/*"
+                    onChange={handleReelVideoFileChange}
+                    className="cursor-pointer"
+                  />
+                  {reelVideoFile && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setReelVideoFile(null)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                {reelVideoFile && (
+                  <p className="text-sm text-green-600">
+                    Selected: {reelVideoFile.name}
+                  </p>
+                )}
+              </div>
+
+              <div className="text-center text-sm text-muted-foreground">OR</div>
+
+              {/* Video URL */}
+              <div className="space-y-2">
+                <Label htmlFor="reel-video-url">Video URL</Label>
                 <Input
-                  id="reel-url"
-                  placeholder="https://example.com/reel.mp4"
-                  value={reelUrl}
-                  onChange={(e) => setReelUrl(e.target.value)}
+                  id="reel-video-url"
+                  placeholder="https://example.com/video.mp4"
+                  value={reelVideoUrl}
+                  onChange={(e) => setReelVideoUrl(e.target.value)}
+                  disabled={!!reelVideoFile}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Publicly accessible URL to your vertical video (9:16 ratio, 15-90 seconds)
+                  Or provide a public video URL
                 </p>
               </div>
 
+              {/* Cover Image */}
               <div className="space-y-2">
-                <Label htmlFor="reel-cover">Cover Image URL (optional)</Label>
-                <Input
-                  id="reel-cover"
-                  placeholder="https://example.com/cover.jpg"
-                  value={reelCoverUrl}
-                  onChange={(e) => setReelCoverUrl(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Custom thumbnail for your Reel
-                </p>
+                <Label>Cover Image (optional)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleReelCoverFileChange}
+                    className="cursor-pointer"
+                  />
+                  {reelCoverFile && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setReelCoverFile(null)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                {!reelCoverFile && (
+                  <Input
+                    placeholder="https://example.com/thumbnail.jpg"
+                    value={reelCoverUrl}
+                    onChange={(e) => setReelCoverUrl(e.target.value)}
+                  />
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="reel-caption">Caption (optional)</Label>
+                <Label htmlFor="reel-caption">Caption</Label>
                 <Textarea
                   id="reel-caption"
-                  placeholder="Write a caption... #hashtags"
+                  placeholder="Write a caption..."
+                  rows={4}
                   value={reelCaption}
                   onChange={(e) => setReelCaption(e.target.value)}
-                  rows={4}
-                  maxLength={2200}
                 />
-                <p className="text-xs text-muted-foreground">
-                  {reelCaption.length}/2,200 characters
-                </p>
               </div>
 
-              {reelResult && (
-                <Alert variant={reelResult.success ? "default" : "destructive"}>
-                  {reelResult.success ? (
-                    <CheckCircle className="h-4 w-4" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4" />
-                  )}
-                  <AlertTitle>{reelResult.success ? "Success!" : "Error"}</AlertTitle>
-                  <AlertDescription>
-                    {reelResult.message || reelResult.error}
-                  </AlertDescription>
-                </Alert>
-              )}
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="share-to-feed"
+                  checked={shareToFeed}
+                  onChange={(e) => setShareToFeed(e.target.checked)}
+                  className="rounded"
+                />
+                <Label htmlFor="share-to-feed" className="cursor-pointer">
+                  Share to feed (also appears in main feed, not just Reels)
+                </Label>
+              </div>
 
               <Button
                 onClick={handlePublishReel}
-                disabled={reelLoading || !reelUrl}
+                disabled={loading || uploadingFile}
                 className="w-full"
               >
-                {reelLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Publishing... (this may take a minute)
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Publish Reel
-                  </>
-                )}
+                {(loading || uploadingFile) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {uploadingFile ? "Uploading..." : loading ? "Publishing..." : "Publish Reel"}
               </Button>
 
-              <Alert>
-                <InfoIcon className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  Reel publishing takes 1-2 minutes as Instagram needs to process the video.
-                </AlertDescription>
-              </Alert>
+              <p className="text-xs text-muted-foreground">
+                Note: Video processing may take up to 1 minute
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Carousel Tab */}
+        <TabsContent value="carousel">
+          <Card>
+            <CardHeader>
+              <CardTitle>Publish Carousel</CardTitle>
+              <CardDescription>
+                Share multiple images/videos in a single post (2-10 items)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {carouselItems.map((item, index) => (
+                <div key={index} className="p-4 border rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Item {index + 1}</Label>
+                    {carouselItems.length > 2 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeCarouselItem(index)}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* File Upload */}
+                  <div className="space-y-2">
+                    <Label>Select File</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={(e) => handleCarouselFileChange(index, e)}
+                        className="cursor-pointer"
+                      />
+                      {item.file && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const newItems = [...carouselItems]
+                            newItems[index].file = null
+                            setCarouselItems(newItems)
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    {item.file && (
+                      <p className="text-sm text-green-600">
+                        Selected: {item.file.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="text-center text-sm text-muted-foreground">OR</div>
+
+                  {/* URL Inputs */}
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Image URL"
+                      value={item.imageUrl}
+                      onChange={(e) => updateCarouselItem(index, "imageUrl", e.target.value)}
+                      disabled={!!item.file}
+                    />
+                  </div>
+
+                  <div className="text-center text-sm text-muted-foreground">OR</div>
+
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Video URL"
+                      value={item.videoUrl}
+                      onChange={(e) => updateCarouselItem(index, "videoUrl", e.target.value)}
+                      disabled={!!item.file}
+                    />
+                  </div>
+                </div>
+              ))}
+
+              {carouselItems.length < 10 && (
+                <Button
+                  variant="outline"
+                  onClick={addCarouselItem}
+                  className="w-full"
+                >
+                  Add Item
+                </Button>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="carousel-caption">Caption</Label>
+                <Textarea
+                  id="carousel-caption"
+                  placeholder="Write a caption..."
+                  rows={4}
+                  value={carouselCaption}
+                  onChange={(e) => setCarouselCaption(e.target.value)}
+                />
+              </div>
+
+              <Button
+                onClick={handlePublishCarousel}
+                disabled={loading || uploadingFile}
+                className="w-full"
+              >
+                {(loading || uploadingFile) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {uploadingFile ? "Uploading..." : loading ? "Publishing..." : "Publish Carousel"}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Instructions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Important Notes</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>• You can choose images from your Media Library or upload new ones</p>
+          <p>• Images should be at least 320px wide</p>
+          <p>• Videos must be H.264 codec, AAC audio, 3gp/mov/mp4 format</p>
+          <p>• Reels: 4-90 seconds, vertical orientation recommended</p>
+          <p>• Feed videos: 3-60 seconds</p>
+          <p>• Caption max: 2,200 characters</p>
+          <p>• You need the instagram_content_publish permission</p>
+          <p>• Aspect ratio: 4:5 to 1.91:1 (cuadrado 1:1 recomendado)</p>
+        </CardContent>
+      </Card>
+
+      {/* Media Library Modal */}
+      <Dialog open={showMediaLibrary} onOpenChange={setShowMediaLibrary}>
+        <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Media Library - Select an Image</DialogTitle>
+          </DialogHeader>
+
+          {loadingLibrary ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : libraryImages.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Folder className="h-12 w-12 mx-auto mb-4 opacity-20" />
+              <p className="mb-2">No images in your library yet</p>
+              <Button variant="outline" onClick={() => window.open(`/dashboard/${brandId}/media`, '_blank')}>
+                Go to Media Library
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {libraryImages.map((image: any) => (
+                <button
+                  key={image.id}
+                  onClick={() => selectFromLibrary(image.url)}
+                  className="group relative aspect-square rounded-lg overflow-hidden border-2 border-border hover:border-primary transition-all cursor-pointer"
+                >
+                  <img
+                    src={image.thumbnail}
+                    alt="Library image"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <CheckCircle2 className="h-8 w-8 text-white" />
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1 text-center">
+                    {image.width}x{image.height}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

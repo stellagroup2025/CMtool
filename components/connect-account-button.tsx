@@ -22,6 +22,7 @@ interface ConnectAccountButtonProps {
   platform: string
   isConnected: boolean
   accountId?: string
+  hasCredentials?: boolean
 }
 
 export function ConnectAccountButton({
@@ -29,16 +30,24 @@ export function ConnectAccountButton({
   platform,
   isConnected,
   accountId,
+  hasCredentials = true,
 }: ConnectAccountButtonProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
 
   const handleConnect = () => {
+    // Check if credentials are configured
+    if (!hasCredentials) {
+      toast.error("API credentials not configured", {
+        description: "Please configure your API credentials in the settings above before connecting an account."
+      })
+      return
+    }
+
     // Start OAuth flow
     const state = JSON.stringify({ brandId, platform })
 
     if (platform === "INSTAGRAM") {
-      // Check if configured by trying to navigate - the API will return an error if not configured
       window.location.href = `/api/oauth/authorize/instagram?state=${encodeURIComponent(state)}`
     } else {
       toast.info(`${platform} OAuth is not implemented yet`, {

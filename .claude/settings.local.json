@@ -13,7 +13,16 @@
       "Bash(npm run db:push)",
       "Bash(npm run db:seed)",
       "WebFetch(domain:developers.facebook.com)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(npx prisma migrate dev --name add_oauth_credentials)",
+      "Bash(npx prisma db push)",
+      "Bash(npx prisma studio --help)",
+      "Bash(npx prisma db push --accept-data-loss)",
+      "Bash(npx prisma generate)",
+      "Bash(cat /mnt/c/Users/Omar/Documents/CMtool/.env.local)",
+      "Bash(cat .env.local)",
+      "Bash(npm install cloudinary)",
+      "Bash(npx prisma migrate dev --name add_media_assets)"
     ],
     "deny": [],
     "ask": []

@@ -2,11 +2,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Instagram, Facebook, Twitter, Linkedin, Youtube } from "lucide-react"
-import { getSocialAccountsAction } from "./actions"
+import { getSocialAccountsAction, getOAuthCredentialsAction } from "./actions"
 import { ConnectAccountButton } from "@/components/connect-account-button"
+import { OAuthCredentialsForm } from "@/components/oauth-credentials-form"
+import { Platform } from "@prisma/client"
 
 export default async function SettingsPage({ params }: { params: { brandId: string } }) {
   const accounts = await getSocialAccountsAction(params.brandId)
+
+  // Get Instagram credentials
+  const instagramCredentials = await getOAuthCredentialsAction(params.brandId, Platform.INSTAGRAM)
 
   const platforms = [
     {
@@ -53,6 +58,23 @@ export default async function SettingsPage({ params }: { params: { brandId: stri
         <p className="text-muted-foreground mt-1">Manage your brand and connected social accounts</p>
       </div>
 
+      {/* API Credentials Section */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold">API Credentials</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Configure your OAuth credentials for each platform. These are required to connect accounts.
+          </p>
+        </div>
+        <OAuthCredentialsForm
+          brandId={params.brandId}
+          platform={Platform.INSTAGRAM}
+          platformName="Instagram"
+          platformColor="text-pink-500"
+          existingCredentials={instagramCredentials}
+        />
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Connected Accounts</CardTitle>
@@ -91,6 +113,7 @@ export default async function SettingsPage({ params }: { params: { brandId: stri
                   platform={platform.id}
                   isConnected={!!connectedAccount}
                   accountId={connectedAccount?.id}
+                  hasCredentials={platform.id === "INSTAGRAM" ? !!instagramCredentials : true}
                 />
               </div>
             )

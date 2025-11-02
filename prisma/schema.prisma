@@ -164,6 +164,8 @@ model Brand {
   posts           Post[]
   conversations   Conversation[]
   audits          Audit[]
+  oauthCredentials OAuthCredentials[]
+  mediaAssets     MediaAsset[]
 
   @@index([slug])
   @@map("brands")
@@ -341,8 +343,9 @@ model Conversation {
 model Message {
   id             String      @id @default(cuid())
   conversationId String
+  platform       Platform
   from           MessageFrom
-  externalId     String? // External message ID
+  externalId     String // External message ID
   content        String      @db.Text
   mediaUrls      String[]
   metadata       Json?
@@ -350,6 +353,7 @@ model Message {
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
+  @@unique([platform, externalId])
   @@index([conversationId, createdAt])
   @@map("messages")
 }
@@ -403,4 +407,52 @@ model Audit {
   @@index([brandId, createdAt])
   @@index([userId, createdAt])
   @@map("audits")
+}
+
+// ============================================
+// OAUTH CREDENTIALS
+// ============================================
+
+model OAuthCredentials {
+  id           String   @id @default(cuid())
+  brandId      String
+  platform     Platform
+  clientId     String   @db.Text // Encrypted
+  clientSecret String   @db.Text // Encrypted
+  metadata     Json? // Additional platform-specific settings
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@unique([brandId, platform])
+  @@index([brandId, platform, isActive])
+  @@map("oauth_credentials")
+}
+
+// ============================================
+// MEDIA LIBRARY
+// ============================================
+
+model MediaAsset {
+  id          String    @id @default(cuid())
+  brandId     String
+  publicId    String // Cloudinary public_id
+  url         String    @db.Text
+  format      String
+  width       Int
+  height      Int
+  bytes       Int
+  usedCount   Int       @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@unique([brandId, publicId])
+  @@index([brandId, usedCount])
+  @@index([brandId, lastUsedAt])
+  @@map("media_assets")
 }
