@@ -40,6 +40,12 @@ const publishCarouselSchema = z.object({
         imageUrl: z.string().url().optional(),
         videoUrl: z.string().url().optional(),
       })
+      .refine(
+        (item) => (item.imageUrl && !item.videoUrl) || (!item.imageUrl && item.videoUrl),
+        {
+          message: "Each item must have either imageUrl OR videoUrl, not both or neither",
+        }
+      )
     )
     .min(2)
     .max(10),
@@ -115,10 +121,10 @@ async function markImagesAsUsed(
             lastUsedAt: new Date(),
           },
         })
-        logger.info({ publicId, brandId }, "Marked image as used")
+        console.log("Marked image as used:", publicId, brandId)
       }
     } catch (error) {
-      logger.error({ error, publicId }, "Failed to mark image as used")
+      console.error("Failed to mark image as used:", error, publicId)
     }
   }
 }
@@ -192,23 +198,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Log the request for debugging
-    logger.info(
-      {
-        type: data.type,
-        imageUrl: data.type === "image" ? data.imageUrl : undefined,
-        videoUrl: data.type === "reel" ? data.videoUrl : undefined,
-        igUserId,
-        socialAccountId: data.socialAccountId,
-      },
-      "Publishing content to Instagram"
-    )
+    console.log("Publishing content to Instagram:", {
+      type: data.type,
+      imageUrl: data.type === "image" ? data.imageUrl : undefined,
+      videoUrl: data.type === "reel" ? data.videoUrl : undefined,
+      igUserId,
+      socialAccountId: data.socialAccountId,
+    })
 
     // Publish based on type
     let result
 
     switch (data.type) {
       case "image":
-        logger.info({ imageUrl: data.imageUrl }, "Publishing single image")
+        console.log("Publishing single image:", data.imageUrl)
         result = await publishSingleImage(
           igUserId,
           pageAccessToken,
@@ -229,6 +232,15 @@ export async function POST(req: NextRequest) {
         break
 
       case "carousel":
+        console.log("Publishing carousel:", {
+          itemCount: data.items.length,
+          items: data.items.map(item => ({
+            hasImage: !!item.imageUrl,
+            hasVideo: !!item.videoUrl,
+            imageUrl: item.imageUrl ? item.imageUrl.substring(0, 50) + '...' : undefined,
+            videoUrl: item.videoUrl ? item.videoUrl.substring(0, 50) + '...' : undefined,
+          }))
+        })
         result = await publishCarousel(
           igUserId,
           pageAccessToken,
@@ -239,7 +251,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!result.success) {
-      logger.error({ error: result.error }, "Failed to publish content")
+      console.error("Failed to publish content:", result.error)
       return NextResponse.json(
         { error: result.error || "Failed to publish content" },
         { status: 500 }
@@ -248,17 +260,14 @@ export async function POST(req: NextRequest) {
 
     // Mark images as used (fire and forget - don't block response)
     markImagesAsUsed(data, data.brandId).catch((error) => {
-      logger.error({ error }, "Failed to mark images as used")
+      console.error("Failed to mark images as used:", error)
     })
 
-    logger.info(
-      {
-        postId: result.postId,
-        type: data.type,
-        socialAccountId: data.socialAccountId,
-      },
-      "Content published successfully"
-    )
+    console.log("Content published successfully:", {
+      postId: result.postId,
+      type: data.type,
+      socialAccountId: data.socialAccountId,
+    })
 
     return NextResponse.json({
       success: true,
@@ -273,7 +282,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    logger.error({ error }, "Error publishing content")
+    console.error("Error publishing content:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

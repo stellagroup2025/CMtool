@@ -63,30 +63,47 @@ export async function getMediaLibrary(brandId: string) {
 
     return {
       success: true,
-      images: result.resources.map((resource: any) => ({
-        id: resource.public_id,
-        // Use Instagram-optimized URL for direct publishing
-        url: cloudinary.url(resource.public_id, {
+      images: result.resources.map((resource: any) => {
+        let url = cloudinary.url(resource.public_id, {
           secure: true,
           sign_url: false,
           type: "upload",
           resource_type: "image",
           format: "jpg",
           quality: "auto:good",
-        }),
-        thumbnail: cloudinary.url(resource.public_id, {
+        })
+        let thumbnail = cloudinary.url(resource.public_id, {
           width: 400,
           height: 400,
           crop: "fill",
           secure: true,
           format: "jpg",
-        }),
-        width: resource.width,
-        height: resource.height,
-        format: resource.format,
-        createdAt: resource.created_at,
-        bytes: resource.bytes,
-      })),
+        })
+
+        // Remove analytics parameters that Cloudinary adds
+        try {
+          const urlObj = new URL(url)
+          urlObj.search = ''
+          url = urlObj.toString()
+
+          const thumbObj = new URL(thumbnail)
+          thumbObj.search = ''
+          thumbnail = thumbObj.toString()
+        } catch (e) {
+          // If URL parsing fails, use original URLs
+        }
+
+        return {
+          id: resource.public_id,
+          url,
+          thumbnail,
+          width: resource.width,
+          height: resource.height,
+          format: resource.format,
+          createdAt: resource.created_at,
+          bytes: resource.bytes,
+        }
+      }),
     }
   } catch (error: any) {
     return {
@@ -103,7 +120,7 @@ export async function getMediaLibrary(brandId: string) {
  */
 export function getInstagramOptimizedUrl(publicId: string): string {
   const cloudinary = getCloudinary()
-  return cloudinary.url(publicId, {
+  let url = cloudinary.url(publicId, {
     secure: true,
     sign_url: false,
     type: "upload",
@@ -112,6 +129,12 @@ export function getInstagramOptimizedUrl(publicId: string): string {
     quality: "auto:good",
     fetch_format: "auto",
   })
+
+  // Remove analytics parameters that Cloudinary adds (like ?_a=...)
+  // Instagram might not accept URLs with query parameters
+  const urlObj = new URL(url)
+  urlObj.search = '' // Remove all query parameters
+  return urlObj.toString()
 }
 
 /**

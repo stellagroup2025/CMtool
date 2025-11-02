@@ -37,6 +37,7 @@ export default function PublishPage() {
   const [showMediaLibrary, setShowMediaLibrary] = useState(false)
   const [libraryImages, setLibraryImages] = useState<any[]>([])
   const [loadingLibrary, setLoadingLibrary] = useState(false)
+  const [carouselItemIndexForLibrary, setCarouselItemIndexForLibrary] = useState<number | null>(null)
 
   // Image state
   const [imageUrl, setImageUrl] = useState("")
@@ -54,8 +55,8 @@ export default function PublishPage() {
 
   // Carousel state
   const [carouselItems, setCarouselItems] = useState([
-    { imageUrl: "", videoUrl: "", file: null as File | null },
-    { imageUrl: "", videoUrl: "", file: null as File | null },
+    { imageUrl: "", videoUrl: "", file: null as File | null, preview: null as string | null },
+    { imageUrl: "", videoUrl: "", file: null as File | null, preview: null as string | null },
   ])
   const [carouselCaption, setCarouselCaption] = useState("")
 
@@ -70,8 +71,8 @@ export default function PublishPage() {
     setReelVideoFile(null)
     setReelCoverFile(null)
     setCarouselItems([
-      { imageUrl: "", videoUrl: "", file: null },
-      { imageUrl: "", videoUrl: "", file: null },
+      { imageUrl: "", videoUrl: "", file: null, preview: null },
+      { imageUrl: "", videoUrl: "", file: null, preview: null },
     ])
     setCarouselCaption("")
   }
@@ -131,6 +132,22 @@ export default function PublishPage() {
     if (file) {
       const newItems = [...carouselItems]
       newItems[index].file = file
+      newItems[index].imageUrl = "" // Clear URLs when file is selected
+      newItems[index].videoUrl = ""
+
+      // Create preview if it's an image
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const updatedItems = [...carouselItems]
+          updatedItems[index].preview = reader.result as string
+          setCarouselItems(updatedItems)
+        }
+        reader.readAsDataURL(file)
+      } else {
+        newItems[index].preview = null
+      }
+
       setCarouselItems(newItems)
     }
   }
@@ -183,10 +200,29 @@ export default function PublishPage() {
 
   // Select image from library
   const selectFromLibrary = (url: string) => {
-    setImageUrl(url)
+    // Check if we're selecting for carousel item
+    if (carouselItemIndexForLibrary !== null) {
+      const newItems = [...carouselItems]
+      newItems[carouselItemIndexForLibrary].imageUrl = url
+      newItems[carouselItemIndexForLibrary].videoUrl = "" // Clear video URL
+      newItems[carouselItemIndexForLibrary].file = null
+      newItems[carouselItemIndexForLibrary].preview = url
+      setCarouselItems(newItems)
+      setCarouselItemIndexForLibrary(null)
+    } else {
+      // Single image selection
+      setImageUrl(url)
+      setImageFile(null)
+      setImagePreview(null)
+    }
     setShowMediaLibrary(false)
-    setImageFile(null)
-    setImagePreview(null)
+  }
+
+  // Open media library for carousel item
+  const openMediaLibraryForCarousel = (index: number) => {
+    setCarouselItemIndexForLibrary(index)
+    setShowMediaLibrary(true)
+    loadMediaLibrary()
   }
 
   const handlePublishImage = async () => {
@@ -211,6 +247,17 @@ export default function PublishPage() {
         setUploadingFile(true)
         finalImageUrl = await uploadFile(imageFile)
         setUploadingFile(false)
+      }
+
+      // Remove query parameters from URL (like Cloudinary analytics)
+      if (finalImageUrl) {
+        try {
+          const url = new URL(finalImageUrl)
+          url.search = ''
+          finalImageUrl = url.toString()
+        } catch {
+          // Keep original URL if parsing fails
+        }
       }
 
       const response = await fetch("/api/instagram/publish", {
@@ -327,18 +374,50 @@ export default function PublishPage() {
         validItems.map(async (item) => {
           if (item.file) {
             const url = await uploadFile(item.file)
-            return {
-              imageUrl: item.file.type.startsWith("image/") ? url : undefined,
-              videoUrl: item.file.type.startsWith("video/") ? url : undefined,
+            // Only include the field that has a value
+            if (item.file.type.startsWith("image/")) {
+              return { imageUrl: url }
+            } else {
+              return { videoUrl: url }
             }
           }
-          return {
-            imageUrl: item.imageUrl || undefined,
-            videoUrl: item.videoUrl || undefined,
+          // Only include the field that has a value
+          if (item.imageUrl) {
+            return { imageUrl: item.imageUrl }
+          } else if (item.videoUrl) {
+            return { videoUrl: item.videoUrl }
+          } else {
+            return {} // Should not happen due to filter
           }
         })
       )
       setUploadingFile(false)
+
+      // Filter out any empty items (just in case)
+      const cleanedItems = processedItems.filter(item => item.imageUrl || item.videoUrl).map(item => {
+        // Remove query parameters from Cloudinary URLs (like ?_a=...)
+        if (item.imageUrl) {
+          try {
+            const url = new URL(item.imageUrl)
+            url.search = ''
+            return { imageUrl: url.toString() }
+          } catch {
+            return { imageUrl: item.imageUrl }
+          }
+        }
+        if (item.videoUrl) {
+          try {
+            const url = new URL(item.videoUrl)
+            url.search = ''
+            return { videoUrl: url.toString() }
+          } catch {
+            return { videoUrl: item.videoUrl }
+          }
+        }
+        return item
+      })
+
+      console.log("Sending carousel items:", cleanedItems)
 
       const response = await fetch("/api/instagram/publish", {
         method: "POST",
@@ -347,7 +426,7 @@ export default function PublishPage() {
           type: "carousel",
           brandId,
           socialAccountId: selectedAccountId,
-          items: processedItems,
+          items: cleanedItems,
           caption: carouselCaption || undefined,
         }),
       })
@@ -370,7 +449,7 @@ export default function PublishPage() {
 
   const addCarouselItem = () => {
     if (carouselItems.length < 10) {
-      setCarouselItems([...carouselItems, { imageUrl: "", videoUrl: "", file: null }])
+      setCarouselItems([...carouselItems, { imageUrl: "", videoUrl: "", file: null, preview: null }])
     }
   }
 
@@ -383,6 +462,18 @@ export default function PublishPage() {
   const updateCarouselItem = (index: number, field: "imageUrl" | "videoUrl", value: string) => {
     const newItems = [...carouselItems]
     newItems[index][field] = value
+
+    // If setting imageUrl, clear videoUrl and update preview
+    if (field === "imageUrl") {
+      newItems[index].videoUrl = ""
+      newItems[index].preview = value || null
+    }
+    // If setting videoUrl, clear imageUrl and preview
+    else if (field === "videoUrl") {
+      newItems[index].imageUrl = ""
+      newItems[index].preview = null
+    }
+
     setCarouselItems(newItems)
   }
 
@@ -702,55 +793,80 @@ export default function PublishPage() {
               {carouselItems.map((item, index) => (
                 <div key={index} className="p-4 border rounded-lg space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label>Item {index + 1}</Label>
+                    <Label className="text-base font-semibold">Item {index + 1}</Label>
                     {carouselItems.length > 2 && (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => removeCarouselItem(index)}
                       >
+                        <X className="h-4 w-4 mr-1" />
                         Remove
                       </Button>
                     )}
                   </div>
 
+                  {/* Preview if available */}
+                  {item.preview && (
+                    <div className="relative">
+                      <img
+                        src={item.preview}
+                        alt={`Preview ${index + 1}`}
+                        className="max-h-48 rounded-lg border w-full object-cover"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70"
+                        onClick={() => {
+                          const newItems = [...carouselItems]
+                          newItems[index].file = null
+                          newItems[index].preview = null
+                          newItems[index].imageUrl = ""
+                          setCarouselItems(newItems)
+                        }}
+                      >
+                        <X className="h-4 w-4 text-white" />
+                      </Button>
+                    </div>
+                  )}
+
                   {/* File Upload */}
                   <div className="space-y-2">
-                    <Label>Select File</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="file"
-                        accept="image/*,video/*"
-                        onChange={(e) => handleCarouselFileChange(index, e)}
-                        className="cursor-pointer"
-                      />
-                      {item.file && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            const newItems = [...carouselItems]
-                            newItems[index].file = null
-                            setCarouselItems(newItems)
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    {item.file && (
-                      <p className="text-sm text-green-600">
-                        Selected: {item.file.name}
-                      </p>
-                    )}
+                    <Label>Select Image from Computer</Label>
+                    <Input
+                      type="file"
+                      accept="image/*,video/*"
+                      onChange={(e) => handleCarouselFileChange(index, e)}
+                      className="cursor-pointer"
+                      disabled={!!item.imageUrl && !item.file}
+                    />
+                  </div>
+
+                  <div className="text-center text-sm text-muted-foreground">OR</div>
+
+                  {/* Choose from Library */}
+                  <div className="space-y-2">
+                    <Label>Choose from Media Library</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => openMediaLibraryForCarousel(index)}
+                      disabled={!!item.file}
+                    >
+                      <Folder className="mr-2 h-4 w-4" />
+                      Browse Library
+                    </Button>
                   </div>
 
                   <div className="text-center text-sm text-muted-foreground">OR</div>
 
                   {/* URL Inputs */}
                   <div className="space-y-2">
+                    <Label>Image URL</Label>
                     <Input
-                      placeholder="Image URL"
+                      placeholder="https://example.com/image.jpg"
                       value={item.imageUrl}
                       onChange={(e) => updateCarouselItem(index, "imageUrl", e.target.value)}
                       disabled={!!item.file}
@@ -760,8 +876,9 @@ export default function PublishPage() {
                   <div className="text-center text-sm text-muted-foreground">OR</div>
 
                   <div className="space-y-2">
+                    <Label>Video URL</Label>
                     <Input
-                      placeholder="Video URL"
+                      placeholder="https://example.com/video.mp4"
                       value={item.videoUrl}
                       onChange={(e) => updateCarouselItem(index, "videoUrl", e.target.value)}
                       disabled={!!item.file}
@@ -822,10 +939,17 @@ export default function PublishPage() {
       </Card>
 
       {/* Media Library Modal */}
-      <Dialog open={showMediaLibrary} onOpenChange={setShowMediaLibrary}>
+      <Dialog open={showMediaLibrary} onOpenChange={() => {
+        setShowMediaLibrary(false)
+        setCarouselItemIndexForLibrary(null)
+      }}>
         <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Media Library - Select an Image</DialogTitle>
+            <DialogTitle>
+              {carouselItemIndexForLibrary !== null
+                ? `Select Image for Item ${carouselItemIndexForLibrary + 1}`
+                : "Media Library - Select an Image"}
+            </DialogTitle>
           </DialogHeader>
 
           {loadingLibrary ? (

@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     })
 
-    logger.info({ brandId, filter, imageCount: images.length }, "Retrieved media library")
+    console.log("Retrieved media library:", { brandId, filter, imageCount: images.length })
 
     return NextResponse.json({
       success: true,
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       })),
     })
   } catch (error: any) {
-    logger.error({ error }, "Error fetching media library")
+    console.error("Error fetching media library:", error)
     return NextResponse.json(
       { error: "Failed to fetch media library" },
       { status: 500 }

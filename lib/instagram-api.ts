@@ -371,7 +371,7 @@ export interface CreateMediaContainerParams {
   imageUrl?: string
   videoUrl?: string
   caption?: string
-  mediaType?: "IMAGE" | "VIDEO" | "REELS" | "CAROUSEL_ALBUM"
+  mediaType?: "IMAGE" | "VIDEO" | "REELS" | "CAROUSEL"
   isCarouselItem?: boolean
   coverUrl?: string // For videos/reels thumbnail
   children?: string[] // For carousel - array of media container IDs
@@ -423,9 +423,9 @@ export async function createMediaContainer(
       }
     }
 
-    // Carousel Album
-    if (params.mediaType === "CAROUSEL_ALBUM" && params.children) {
-      body.media_type = "CAROUSEL_ALBUM"
+    // Carousel
+    if (params.mediaType === "CAROUSEL" && params.children) {
+      body.media_type = "CAROUSEL"
       body.children = params.children.join(",")
     }
 
@@ -450,13 +450,10 @@ export async function createMediaContainer(
     }
 
     // Log what we're sending to Instagram for debugging
-    logger.info(
-      {
-        endpoint: `https://graph.facebook.com/v19.0/${igUserId}/media`,
-        params: { ...body, access_token: "[REDACTED]" },
-      },
-      "Creating media container on Instagram"
-    )
+    console.log("Creating media container on Instagram:", {
+      endpoint: `https://graph.facebook.com/v19.0/${igUserId}/media`,
+      params: { ...body, access_token: "[REDACTED]" },
+    })
 
     const response = await fetch(
       `https://graph.facebook.com/v19.0/${igUserId}/media`,
@@ -471,14 +468,14 @@ export async function createMediaContainer(
 
     if (!response.ok) {
       const error = await response.json()
-      logger.error({ error, requestBody: { ...body, access_token: "[REDACTED]" } }, "Failed to create media container")
+      console.error("Failed to create media container:", { error, requestBody: { ...body, access_token: "[REDACTED]" } })
       throw new Error(error.error?.message || "Failed to create media container")
     }
 
     const data = await response.json()
     return { success: true, containerId: data.id }
   } catch (error: any) {
-    logger.error({ error }, "Error creating media container")
+    console.error("Error creating media container:", error)
     return { success: false, error: error.message }
   }
 }
@@ -650,11 +647,19 @@ export async function publishCarousel(
   const itemContainerIds: string[] = []
 
   for (const item of items) {
-    const containerResult = await createMediaContainer(igUserId, pageAccessToken, {
-      imageUrl: item.imageUrl,
-      videoUrl: item.videoUrl,
+    // Build params object with only defined values
+    const itemParams: CreateMediaContainerParams = {
       isCarouselItem: true,
-    })
+    }
+
+    if (item.imageUrl) {
+      itemParams.imageUrl = item.imageUrl
+    }
+    if (item.videoUrl) {
+      itemParams.videoUrl = item.videoUrl
+    }
+
+    const containerResult = await createMediaContainer(igUserId, pageAccessToken, itemParams)
 
     if (!containerResult.success) {
       return containerResult
@@ -665,7 +670,7 @@ export async function publishCarousel(
 
   // Step 2: Create carousel container
   const carouselResult = await createMediaContainer(igUserId, pageAccessToken, {
-    mediaType: "CAROUSEL_ALBUM",
+    mediaType: "CAROUSEL",
     children: itemContainerIds,
     caption,
   })
