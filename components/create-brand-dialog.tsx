@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,17 +14,39 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Plus } from "lucide-react"
 import { createBrandAction } from "@/app/brands/actions"
+import { getClientsListAction } from "@/app/clients/actions"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
-export function CreateBrandDialog() {
+interface CreateBrandDialogProps {
+  clientId?: string
+  trigger?: React.ReactNode
+}
+
+export function CreateBrandDialog({ clientId, trigger }: CreateBrandDialogProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [name, setName] = useState("")
   const [logo, setLogo] = useState("")
+  const [selectedClientId, setSelectedClientId] = useState(clientId || "")
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    if (open && !clientId) {
+      // Load clients list only if clientId is not provided and dialog is open
+      getClientsListAction().then(setClients)
+    }
+  }, [open, clientId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,6 +57,7 @@ export function CreateBrandDialog() {
         name,
         logo: logo || undefined,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        clientId: selectedClientId || undefined,
       })
 
       if (result.success) {
@@ -42,6 +65,7 @@ export function CreateBrandDialog() {
         setOpen(false)
         setName("")
         setLogo("")
+        setSelectedClientId(clientId || "")
         router.refresh()
       }
     } catch (error) {
@@ -55,17 +79,19 @@ export function CreateBrandDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Card className="border-dashed border-2 border-border/50 hover:border-primary/50 transition-colors cursor-pointer">
-          <CardContent className="flex flex-col items-center justify-center py-12 space-y-3">
-            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-              <Plus className="h-6 w-6 text-muted-foreground" />
-            </div>
-            <div className="text-center space-y-1">
-              <p className="font-semibold">Add New Brand</p>
-              <p className="text-sm text-muted-foreground">Create a new brand to manage</p>
-            </div>
-          </CardContent>
-        </Card>
+        {trigger || (
+          <Card className="border-dashed border-2 border-border/50 hover:border-primary/50 transition-colors cursor-pointer">
+            <CardContent className="flex flex-col items-center justify-center py-12 space-y-3">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                <Plus className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div className="text-center space-y-1">
+                <p className="font-semibold">Add New Brand</p>
+                <p className="text-sm text-muted-foreground">Create a new brand to manage</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
@@ -87,6 +113,29 @@ export function CreateBrandDialog() {
                 disabled={isLoading}
               />
             </div>
+
+            {!clientId && (
+              <div className="grid gap-2">
+                <Label htmlFor="client">Cliente (opcional)</Label>
+                <Select value={selectedClientId} onValueChange={setSelectedClientId} disabled={isLoading}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Sin cliente</SelectItem>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Asigna esta brand a un cliente existente
+                </p>
+              </div>
+            )}
+
             <div className="grid gap-2">
               <Label htmlFor="logo">Logo URL (optional)</Label>
               <Input

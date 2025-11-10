@@ -22,7 +22,20 @@
       "Bash(cat /mnt/c/Users/Omar/Documents/CMtool/.env.local)",
       "Bash(cat .env.local)",
       "Bash(npm install cloudinary)",
-      "Bash(npx prisma migrate dev --name add_media_assets)"
+      "Bash(npx prisma migrate dev --name add_media_assets)",
+      "Bash(npx prisma migrate dev --name add_client_quote_contract_models)",
+      "Bash(npx prisma generate --no-engine)",
+      "Bash(find node_modules/.prisma -type f -name \"*.js\" -delete)",
+      "Bash(npx prisma migrate dev --name add_leads_model)",
+      "Bash(npm install @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities date-fns)",
+      "Bash(npm install recharts react-to-print jspdf jspdf-autotable)",
+      "Bash(npm install html2canvas)",
+      "Bash(npm run build)",
+      "Bash(rm -rf node_modules/.prisma)",
+      "Bash(rm -rf node_modules/@prisma node_modules/.prisma)",
+      "Bash(npm install @prisma/client)",
+      "Bash(rm -rf .next)",
+      "Bash(npm install prisma@latest @prisma/client@latest)"
     ],
     "deny": [],
     "ask": []

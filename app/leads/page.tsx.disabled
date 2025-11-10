@@ -1,0 +1,268 @@
+import Link from "next/link"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Target,
+  ArrowLeft,
+  Mail,
+  Phone,
+  Euro,
+  Calendar,
+  TrendingUp,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Users,
+} from "lucide-react"
+import { getLeadsAction } from "../clients/lead-actions"
+import { LeadFormDialog } from "@/components/lead-form-dialog"
+
+export default async function LeadsPage() {
+  const leads = await getLeadsAction()
+
+  // Get initials from name
+  const getInitials = (name: string) => {
+    const words = name.trim().split(/\s+/)
+    if (words.length >= 2) {
+      return (words[0][0] + words[1][0]).toUpperCase()
+    }
+    return name.substring(0, 2).toUpperCase()
+  }
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("es-ES", {
+      style: "currency",
+      currency: "EUR",
+    }).format(amount)
+  }
+
+  // Format date
+  const formatDate = (date: Date | string) => {
+    return new Date(date).toLocaleDateString("es-ES", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
+  }
+
+  // Status badge for leads
+  const getLeadStatusBadge = (status: string) => {
+    const variants: Record<string, { variant: any; label: string; icon: any }> = {
+      NEW: { variant: "default", label: "Nuevo", icon: Target },
+      CONTACTED: { variant: "default", label: "Contactado", icon: Phone },
+      QUALIFIED: { variant: "default", label: "Cualificado", icon: CheckCircle2 },
+      PROPOSAL: { variant: "default", label: "Propuesta", icon: TrendingUp },
+      NEGOTIATION: { variant: "default", label: "Negociación", icon: Users },
+      WON: { variant: "default", label: "Ganado", icon: CheckCircle2 },
+      LOST: { variant: "destructive", label: "Perdido", icon: XCircle },
+    }
+    const config = variants[status] || variants.NEW
+    const Icon = config.icon
+    return (
+      <Badge variant={config.variant as any} className="gap-1">
+        <Icon className="h-3 w-3" />
+        {config.label}
+      </Badge>
+    )
+  }
+
+  // Calculate stats
+  const stats = {
+    total: leads.length,
+    won: leads.filter((l) => l.status === "WON").length,
+    lost: leads.filter((l) => l.status === "LOST").length,
+    active: leads.filter((l) => !["WON", "LOST"].includes(l.status)).length,
+    totalValue: leads.reduce((sum, l) => sum + (l.estimatedValue || 0), 0),
+    weightedValue: leads.reduce(
+      (sum, l) => sum + ((l.estimatedValue || 0) * l.probability) / 100,
+      0
+    ),
+  }
+
+  return (
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold text-balance">
+              <span className="gradient-text">Prospectos & Leads</span>
+            </h1>
+            <p className="text-muted-foreground text-lg">
+              Gestiona tus oportunidades de negocio y pipeline de ventas
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Link href="/clients">
+              <Button variant="outline">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Clientes
+              </Button>
+            </Link>
+            <LeadFormDialog />
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total Leads
+              </CardTitle>
+              <Target className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.total}</div>
+              <p className="text-xs text-muted-foreground mt-1">{stats.active} activos</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Ganados</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{stats.won}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.total > 0 ? ((stats.won / stats.total) * 100).toFixed(1) : 0}% tasa de conversión
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Valor Total
+              </CardTitle>
+              <Euro className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(stats.totalValue)}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Valor Ponderado
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">
+                {formatCurrency(stats.weightedValue)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Basado en probabilidad</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Leads Grid */}
+        {leads.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {leads.map((lead) => (
+              <Card
+                key={lead.id}
+                className="group cursor-pointer border-border/50 hover:border-primary/50 transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 h-full"
+              >
+                <CardHeader className="space-y-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Target className="h-6 w-6 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-xl truncate">{lead.companyName}</CardTitle>
+                        <p className="text-sm text-muted-foreground truncate">{lead.contactName}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {getLeadStatusBadge(lead.status)}
+                    {lead.client && (
+                      <Badge variant="outline" className="text-xs">
+                        Cliente existente
+                      </Badge>
+                    )}
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  {/* Contact Info */}
+                  <div className="space-y-2 text-sm">
+                    {lead.contactEmail && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Mail className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{lead.contactEmail}</span>
+                      </div>
+                    )}
+                    {lead.contactPhone && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Phone className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{lead.contactPhone}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Value and probability */}
+                  {lead.estimatedValue && (
+                    <div className="pt-3 border-t space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Valor estimado:</span>
+                        <span className="text-sm font-semibold">
+                          {formatCurrency(lead.estimatedValue)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Probabilidad:</span>
+                        <span className="text-sm font-medium">{lead.probability}%</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t">
+                        <span className="text-xs font-medium">Valor ponderado:</span>
+                        <span className="text-sm font-bold text-primary">
+                          {formatCurrency((lead.estimatedValue * lead.probability) / 100)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Expected close date */}
+                  {lead.expectedCloseDate && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
+                      <Calendar className="h-3 w-3" />
+                      <span>Cierre esperado: {formatDate(lead.expectedCloseDate)}</span>
+                    </div>
+                  )}
+
+                  {/* Follow up date */}
+                  {lead.nextFollowUpDate && (
+                    <div className="flex items-center gap-2 text-xs text-amber-600">
+                      <Clock className="h-3 w-3" />
+                      <span>Seguimiento: {formatDate(lead.nextFollowUpDate)}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <Target className="h-16 w-16 text-muted-foreground/50 mb-4" />
+              <h3 className="text-xl font-semibold mb-2">No hay prospectos</h3>
+              <p className="text-muted-foreground text-center mb-6">
+                Empieza añadiendo tu primer prospecto para gestionar tu pipeline de ventas
+              </p>
+              <LeadFormDialog />
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  )
+}

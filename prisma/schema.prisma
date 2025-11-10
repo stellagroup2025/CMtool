@@ -83,6 +83,41 @@ enum MessageFrom {
   SYSTEM
 }
 
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  SOCIAL_MEDIA
+  EMAIL
+  COLD_CALL
+  EVENT
+  OTHER
+}
+
 // ============================================
 // USER & AUTH
 // ============================================
@@ -98,10 +133,14 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // Relations
-  accounts    Account[]
-  sessions    Session[]
-  memberships Membership[]
-  audits      Audit[]
+  accounts         Account[]
+  sessions         Session[]
+  memberships      Membership[]
+  audits           Audit[]
+  projectMembers   ProjectMember[]
+  createdTasks     Task[]          @relation("CreatedTasks")
+  assignedTasks    Task[]          @relation("AssignedTasks")
+  taskComments     TaskComment[]
 
   @@map("users")
 }
@@ -146,11 +185,72 @@ model VerificationToken {
 }
 
 // ============================================
+// CLIENTS (CRM/ERP)
+// ============================================
+
+model Client {
+  id         String   @id @default(cuid())
+  name       String // Company name
+  email      String?
+  phone      String?
+  address    String?
+  city       String?
+  postalCode String?
+  country    String?  @default("España")
+  taxId      String? // NIF/CIF
+  website    String?
+  notes      String?  @db.Text
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  brands    Brand[]
+  quotes    Quote[]
+  contracts Contract[]
+  leads     Lead[]
+  projects  Project[]
+
+  @@index([name])
+  @@index([isActive])
+  @@map("clients")
+}
+
+model Lead {
+  id               String     @id @default(cuid())
+  clientId         String? // Optional: can become a client later
+  companyName      String
+  contactName      String
+  contactEmail     String?
+  contactPhone     String?
+  status           LeadStatus @default(NEW)
+  source           LeadSource @default(OTHER)
+  estimatedValue   Float?
+  probability      Int        @default(50) // 0-100
+  expectedCloseDate DateTime?
+  notes            String?    @db.Text
+  assignedTo       String? // User ID
+  lastContactDate  DateTime?
+  nextFollowUpDate DateTime?
+  isActive         Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([status, isActive])
+  @@index([assignedTo])
+  @@index([expectedCloseDate])
+  @@map("leads")
+}
+
+// ============================================
 // BRANDS & MEMBERSHIPS
 // ============================================
 
 model Brand {
   id        String   @id @default(cuid())
+  clientId  String? // Optional: brand can exist without a client
   name      String
   logo      String?
   slug      String   @unique
@@ -159,15 +259,20 @@ model Brand {
   updatedAt DateTime @updatedAt
 
   // Relations
-  memberships     Membership[]
-  socialAccounts  SocialAccount[]
-  posts           Post[]
-  conversations   Conversation[]
-  audits          Audit[]
+  client           Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  memberships      Membership[]
+  socialAccounts   SocialAccount[]
+  posts            Post[]
+  conversations    Conversation[]
+  audits           Audit[]
   oauthCredentials OAuthCredentials[]
-  mediaAssets     MediaAsset[]
+  mediaAssets      MediaAsset[]
+  reports          Report[]
+  projects         Project[]
+  tasks            Task[]
 
   @@index([slug])
+  @@index([clientId])
   @@map("brands")
 }
 
@@ -455,4 +560,251 @@ model MediaAsset {
   @@index([brandId, usedCount])
   @@index([brandId, lastUsedAt])
   @@map("media_assets")
+}
+
+// ============================================
+// QUOTES & CONTRACTS (ERP)
+// ============================================
+
+model Quote {
+  id           String      @id @default(cuid())
+  quoteNumber  String      @unique // QUO-2025-001
+  clientId     String
+  title        String
+  description  String?     @db.Text
+  items        Json // Array of {description, quantity, unitPrice, total}
+  subtotal     Float
+  tax          Float       @default(0)
+  discount     Float       @default(0)
+  total        Float
+  status       QuoteStatus @default(DRAFT)
+  validUntil   DateTime?
+  notes        String?     @db.Text
+  createdById  String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  sentAt       DateTime?
+  acceptedAt   DateTime?
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, status])
+  @@index([quoteNumber])
+  @@index([status, createdAt])
+  @@map("quotes")
+}
+
+model Contract {
+  id             String         @id @default(cuid())
+  contractNumber String         @unique // CON-2025-001
+  clientId       String
+  title          String
+  description    String?        @db.Text
+  startDate      DateTime
+  endDate        DateTime?
+  value          Float
+  billingCycle   String? // monthly, yearly, one-time
+  status         ContractStatus @default(DRAFT)
+  terms          String?        @db.Text
+  notes          String?        @db.Text
+  createdById    String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  signedAt       DateTime?
+
+  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projects Project[]
+
+  @@index([clientId, status])
+  @@index([contractNumber])
+  @@index([status, startDate])
+  @@map("contracts")
+}
+
+// ============================================
+// REPORTS
+// ============================================
+
+enum ReportStatus {
+  GENERATING
+  COMPLETED
+  FAILED
+  SCHEDULED
+}
+
+enum ReportFrequency {
+  MANUAL
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+}
+
+model Report {
+  id              String         @id @default(cuid())
+  brandId         String
+  reportNumber    String         @unique // REP-2025-001
+  title           String
+  type            String         @default("monthly") // monthly, weekly, custom
+  status          ReportStatus   @default(GENERATING)
+  startDate       DateTime
+  endDate         DateTime
+  generatedBy     String
+  data            Json?          // Report data (metrics, posts, etc)
+  settings        Json?          // Template settings, colors, etc
+  pdfUrl          String?        // URL to generated PDF
+  scheduledFor    DateTime?      // For auto-generated reports
+  frequency       ReportFrequency @default(MANUAL)
+  recipients      String[]       // Email addresses to send to
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId, createdAt])
+  @@index([reportNumber])
+  @@index([status, scheduledFor])
+  @@map("reports")
+}
+
+// ============================================
+// PROJECTS & TASKS
+// ============================================
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  clientId    String?
+  contractId  String?
+  brandId     String?
+  name        String
+  description String?       @db.Text
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime
+  endDate     DateTime?
+  budget      Float?
+  budgetHours Int?
+  createdById String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  client   Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  contract Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  brand    Brand?    @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  tasks    Task[]
+  members  ProjectMember[]
+
+  @@index([clientId, status])
+  @@index([brandId, status])
+  @@index([status, startDate])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  role      String?
+  addedAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  projectId   String?
+  brandId     String?
+  title       String
+  description String?      @db.Text
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  assignedTo  String?
+  dueDate     DateTime?
+  position    Int          @default(0)
+  tags        String[]
+  createdById String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  project     Project?          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  brand       Brand?            @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  assignee    User?             @relation("AssignedTasks", fields: [assignedTo], references: [id], onDelete: SetNull)
+  creator     User              @relation("CreatedTasks", fields: [createdById], references: [id])
+  checkItems  TaskCheckItem[]
+  comments    TaskComment[]
+  attachments TaskAttachment[]
+
+  @@index([projectId, status])
+  @@index([brandId, status])
+  @@index([assignedTo, status])
+  @@index([status, position])
+  @@map("tasks")
+}
+
+model TaskCheckItem {
+  id        String   @id @default(cuid())
+  taskId    String
+  title     String
+  completed Boolean  @default(false)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_check_items")
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([taskId, createdAt])
+  @@map("task_comments")
+}
+
+model TaskAttachment {
+  id         String   @id @default(cuid())
+  taskId     String
+  name       String
+  url        String
+  fileType   String
+  fileSize   Int
+  uploadedBy String
+  createdAt  DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_attachments")
 }

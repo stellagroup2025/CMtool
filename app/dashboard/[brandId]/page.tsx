@@ -1,292 +1,303 @@
-"use client"
-
-import { useParams } from "next/navigation"
+import { getDashboardDataAction } from "./actions"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { TrendingUp, Users, MessageSquare, Calendar, Heart, MoreVertical } from "lucide-react"
-import { mockBrands, mockConversations, mockPosts } from "@/lib/mock-data"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts"
+import {
+  Users,
+  MessageSquare,
+  ImageIcon,
+  Instagram,
+  ArrowRight,
+  TrendingUp,
+  Clock,
+  Folder,
+  Upload
+} from "lucide-react"
+import Link from "next/link"
 
-const engagementData = [
-  { day: "Mon", engagement: 4200 },
-  { day: "Tue", engagement: 5100 },
-  { day: "Wed", engagement: 4800 },
-  { day: "Thu", engagement: 6200 },
-  { day: "Fri", engagement: 7100 },
-  { day: "Sat", engagement: 5900 },
-  { day: "Sun", engagement: 4500 },
-]
-
-const reachData = [
-  { day: "Mon", reach: 12000 },
-  { day: "Tue", reach: 15000 },
-  { day: "Wed", reach: 14500 },
-  { day: "Thu", reach: 18000 },
-  { day: "Fri", reach: 21000 },
-  { day: "Sat", reach: 19000 },
-  { day: "Sun", reach: 16000 },
-]
-
-export default function DashboardPage() {
-  const params = useParams()
-  const brandId = params.brandId as string
-  const brand = mockBrands.find((b) => b.id === brandId)
-
-  if (!brand) {
-    return <div>Brand not found</div>
-  }
-
-  const recentConversations = mockConversations
-    .filter((c) => brand.accounts.some((a) => a.id === c.accountId))
-    .slice(0, 3)
-
-  const upcomingPosts = mockPosts.filter((p) => p.brandId === brandId && p.status === "scheduled")
+export default async function DashboardPage({
+  params,
+}: {
+  params: { brandId: string }
+}) {
+  const dashboardData = await getDashboardDataAction(params.brandId)
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold text-balance">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Overview of your social media performance</p>
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground mt-1">
+          Resumen de tu contenido y cuentas conectadas
+        </p>
       </div>
 
-      {/* Key Metrics */}
+      {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-border/50">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Reach</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Cuentas Conectadas
+            </CardTitle>
+            <Instagram className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{(brand.metrics.reach / 1000000).toFixed(2)}M</div>
-            <div className="flex items-center gap-1 text-xs text-accent mt-1">
-              <TrendingUp className="h-3 w-3" />
-              <span>+12.5% from last week</span>
-            </div>
+            <div className="text-2xl font-bold">{dashboardData.socialAccounts.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {dashboardData.socialAccounts.filter(a => a.platform === "INSTAGRAM").length} Instagram
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-border/50">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Engagement Rate</CardTitle>
-            <Heart className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Media Library
+            </CardTitle>
+            <ImageIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{brand.metrics.engagement}%</div>
-            <div className="flex items-center gap-1 text-xs text-accent mt-1">
-              <TrendingUp className="h-3 w-3" />
-              <span>+0.8% from last week</span>
-            </div>
+            <div className="text-2xl font-bold">{dashboardData.mediaStats.total}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {dashboardData.mediaStats.used} usadas, {dashboardData.mediaStats.unused} disponibles
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-border/50">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pending Messages</CardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{brand.metrics.pendingDMs}</div>
-            <div className="flex items-center gap-1 text-xs text-destructive mt-1">
-              <TrendingUp className="h-3 w-3" />
-              <span>+5 new today</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Growth Rate</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total de Usos
+            </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+{brand.metrics.growth}%</div>
-            <div className="flex items-center gap-1 text-xs text-accent mt-1">
-              <TrendingUp className="h-3 w-3" />
-              <span>+2.3% from last month</span>
+            <div className="text-2xl font-bold">{dashboardData.mediaStats.totalUsage}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Imágenes publicadas
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Última Actividad
+            </CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {dashboardData.recentMedia.length > 0 ? "Hoy" : "—"}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {dashboardData.recentMedia.length > 0
+                ? `${dashboardData.recentMedia.length} imágenes recientes`
+                : "Sin actividad reciente"
+              }
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle>Weekly Engagement</CardTitle>
-            <CardDescription>Total interactions across all platforms</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={engagementData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Bar dataKey="engagement" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Acciones Rápidas</CardTitle>
+          <CardDescription>
+            Accede directamente a las funciones más usadas
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link href={`/dashboard/${params.brandId}/instagram/publish`}>
+              <Button className="w-full h-20 flex-col gap-2" variant="outline">
+                <Upload className="h-5 w-5" />
+                <span>Publicar en Instagram</span>
+              </Button>
+            </Link>
 
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle>Weekly Reach</CardTitle>
-            <CardDescription>Unique users reached this week</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={reachData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Line type="monotone" dataKey="reach" stroke="hsl(var(--accent))" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+            <Link href={`/dashboard/${params.brandId}/media`}>
+              <Button className="w-full h-20 flex-col gap-2" variant="outline">
+                <Folder className="h-5 w-5" />
+                <span>Media Library</span>
+              </Button>
+            </Link>
 
-      {/* Recent Activity & Upcoming Posts */}
+            <Link href={`/dashboard/${params.brandId}/settings`}>
+              <Button className="w-full h-20 flex-col gap-2" variant="outline">
+                <Instagram className="h-5 w-5" />
+                <span>Conectar Cuenta</span>
+              </Button>
+            </Link>
+
+            <Link href={`/dashboard/${params.brandId}/instagram`}>
+              <Button className="w-full h-20 flex-col gap-2" variant="outline">
+                <MessageSquare className="h-5 w-5" />
+                <span>Ver Instagram</span>
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Conversations */}
-        <Card className="border-border/50">
+        {/* Connected Accounts */}
+        <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Recent Conversations</CardTitle>
-                <CardDescription>Latest messages from your audience</CardDescription>
+                <CardTitle>Cuentas Conectadas</CardTitle>
+                <CardDescription>
+                  Tus redes sociales activas
+                </CardDescription>
               </div>
-              <Button variant="ghost" size="sm">
-                View All
-              </Button>
+              <Link href={`/dashboard/${params.brandId}/settings`}>
+                <Button variant="ghost" size="sm">
+                  Configurar
+                  <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </Link>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {recentConversations.map((conversation) => (
-              <div
-                key={conversation.id}
-                className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
-              >
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={conversation.from.avatar || "/placeholder.svg"} alt={conversation.from.name} />
-                  <AvatarFallback>{conversation.from.name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium truncate">{conversation.from.name}</p>
-                    <Badge variant="secondary" className="text-xs">
-                      {conversation.network}
+          <CardContent>
+            {dashboardData.socialAccounts.length > 0 ? (
+              <div className="space-y-4">
+                {dashboardData.socialAccounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                  >
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={account.avatar || undefined} alt={account.username} />
+                      <AvatarFallback>
+                        {account.platform === "INSTAGRAM" ? "IG" : account.platform.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">@{account.username}</p>
+                      {account.displayName && (
+                        <p className="text-sm text-muted-foreground truncate">
+                          {account.displayName}
+                        </p>
+                      )}
+                    </div>
+                    <Badge variant="secondary">
+                      {account.platform}
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground truncate">{conversation.preview}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(conversation.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Instagram className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p className="text-sm mb-4">No tienes cuentas conectadas</p>
+                <Link href={`/dashboard/${params.brandId}/settings`}>
+                  <Button size="sm">
+                    Conectar Cuenta
+                  </Button>
+                </Link>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Upcoming Posts */}
-        <Card className="border-border/50">
+        {/* Recent Media */}
+        <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Upcoming Posts</CardTitle>
-                <CardDescription>Scheduled content for this week</CardDescription>
+                <CardTitle>Imágenes Recientes</CardTitle>
+                <CardDescription>
+                  Últimas imágenes subidas
+                </CardDescription>
               </div>
-              <Button variant="ghost" size="sm">
-                View All
-              </Button>
+              <Link href={`/dashboard/${params.brandId}/media`}>
+                <Button variant="ghost" size="sm">
+                  Ver Todas
+                  <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </Link>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {upcomingPosts.length > 0 ? (
-              upcomingPosts.map((post) => (
-                <div key={post.id} className="p-3 rounded-lg border border-border/50 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm flex-1">{post.content}</p>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex gap-2">
-                      {post.networks.map((network) => (
-                        <Badge key={network} variant="secondary" className="text-xs">
-                          {network}
-                        </Badge>
-                      ))}
+          <CardContent>
+            {dashboardData.recentMedia.length > 0 ? (
+              <div className="grid grid-cols-3 gap-2">
+                {dashboardData.recentMedia.map((media) => (
+                  <div
+                    key={media.id}
+                    className="relative aspect-square rounded-lg overflow-hidden border group"
+                  >
+                    <img
+                      src={media.url}
+                      alt="Media"
+                      className="w-full h-full object-cover"
+                    />
+                    {media.usedCount > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="absolute top-1 right-1 text-xs bg-black/70 text-white border-0"
+                      >
+                        {media.usedCount}x
+                      </Badge>
+                    )}
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-white text-xs">
+                        {media.width}×{media.height}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Calendar className="h-3 w-3" />
-                      {new Date(post.scheduledFor).toLocaleDateString()}
-                    </div>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">No upcoming posts scheduled</p>
+                <ImageIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p className="text-sm mb-4">No has subido imágenes aún</p>
+                <Link href={`/dashboard/${params.brandId}/media`}>
+                  <Button size="sm">
+                    Subir Primera Imagen
+                  </Button>
+                </Link>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Connected Accounts */}
-      <Card className="border-border/50">
-        <CardHeader>
-          <CardTitle>Connected Accounts</CardTitle>
-          <CardDescription>Manage your social media accounts</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {brand.accounts.map((account) => (
-              <div key={account.id} className="p-4 rounded-lg border border-border/50 space-y-3">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={account.avatar || "/placeholder.svg"} alt={account.username} />
-                    <AvatarFallback>{account.network.charAt(0).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{account.username}</p>
-                    <Badge variant="secondary" className="text-xs mt-1">
-                      {account.network}
-                    </Badge>
-                  </div>
+      {/* Popular Media */}
+      {dashboardData.popularMedia.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Imágenes Más Usadas</CardTitle>
+            <CardDescription>
+              Las imágenes que más has publicado
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              {dashboardData.popularMedia.map((media) => (
+                <div
+                  key={media.id}
+                  className="relative aspect-square rounded-lg overflow-hidden border"
+                >
+                  <img
+                    src={media.url}
+                    alt="Popular media"
+                    className="w-full h-full object-cover"
+                  />
+                  <Badge
+                    variant="secondary"
+                    className="absolute top-2 right-2 bg-black/70 text-white border-0"
+                  >
+                    {media.usedCount}x usado
+                  </Badge>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Followers</span>
-                    <span className="font-semibold">{(account.followers / 1000).toFixed(1)}K</span>
-                  </div>
-                  <Progress value={65} className="h-2" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

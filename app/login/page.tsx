@@ -33,7 +33,7 @@ export default function LoginPage() {
         toast.error("Invalid email or password")
       } else {
         toast.success("Login successful!")
-        router.push("/brands")
+        router.push("/dashboard")
         router.refresh()
       }
     } catch (error) {
@@ -46,7 +46,7 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setIsLoading(true)
     try {
-      await signIn("google", { callbackUrl: "/brands" })
+      await signIn("google", { callbackUrl: "/dashboard" })
     } catch (error) {
       toast.error("Google login failed")
       setIsLoading(false)

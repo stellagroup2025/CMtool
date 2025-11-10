@@ -9,6 +9,7 @@ const createBrandSchema = z.object({
   name: z.string().min(1).max(100),
   logo: z.string().url().optional(),
   timezone: z.string().default("Europe/Madrid"),
+  clientId: z.string().optional(),
 })
 
 export async function createBrandAction(data: z.infer<typeof createBrandSchema>) {
@@ -29,6 +30,7 @@ export async function createBrandAction(data: z.infer<typeof createBrandSchema>)
         slug,
         logo: validated.logo,
         timezone: validated.timezone,
+        clientId: validated.clientId,
       },
     })
 
@@ -44,6 +46,9 @@ export async function createBrandAction(data: z.infer<typeof createBrandSchema>)
   })
 
   revalidatePath("/brands")
+  if (validated.clientId) {
+    revalidatePath(`/clients/${validated.clientId}`)
+  }
   return { success: true, brand }
 }
 
@@ -55,6 +60,12 @@ export async function getBrandsAction() {
     include: {
       brand: {
         include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           _count: {
             select: {
               socialAccounts: true,

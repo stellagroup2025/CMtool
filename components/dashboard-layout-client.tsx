@@ -56,6 +56,15 @@ export function DashboardLayoutClient({ children, brand }: DashboardLayoutClient
     return pathname === fullPath
   }
 
+  // Get initials from brand name (max 2 characters)
+  const getInitials = (name: string) => {
+    const words = name.trim().split(/\s+/)
+    if (words.length >= 2) {
+      return (words[0][0] + words[1][0]).toUpperCase()
+    }
+    return name.substring(0, 2).toUpperCase()
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Sidebar */}
@@ -67,15 +76,17 @@ export function DashboardLayoutClient({ children, brand }: DashboardLayoutClient
               variant="ghost"
               size="sm"
               className="w-full justify-start text-muted-foreground hover:text-foreground"
-              onClick={() => router.push("/brands")}
+              onClick={() => router.push("/dashboard")}
             >
               <ChevronLeft className="h-4 w-4 mr-2" />
-              All Brands
+              Dashboard
             </Button>
             <div className="flex items-center gap-3">
               <Avatar className="h-12 w-12 rounded-xl">
-                <AvatarImage src={brand.logo || "/placeholder.svg"} alt={brand.name} />
-                <AvatarFallback className="rounded-xl bg-muted">{brand.name.charAt(0)}</AvatarFallback>
+                <AvatarImage src={brand.logo || undefined} alt={brand.name} />
+                <AvatarFallback className="rounded-xl bg-primary text-primary-foreground font-semibold">
+                  {getInitials(brand.name)}
+                </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold truncate">{brand.name}</p>
