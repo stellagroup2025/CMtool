@@ -11,6 +11,10 @@ const KEY_LENGTH = 32
  * Derives a key from the encryption key using PBKDF2
  */
 function deriveKey(salt: Buffer): Buffer {
+  if (!env.ENCRYPTION_KEY) {
+    throw new Error("ENCRYPTION_KEY is not set in environment variables")
+  }
+  console.log("🔑 ENCRYPTION_KEY length:", env.ENCRYPTION_KEY.length)
   return crypto.pbkdf2Sync(
     Buffer.from(env.ENCRYPTION_KEY, "base64"),
     salt,

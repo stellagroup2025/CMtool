@@ -2,9 +2,11 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ArrowRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { ArrowRight, LogOut } from "lucide-react"
 import { getBrandsAction } from "./actions"
 import { CreateBrandDialog } from "@/components/create-brand-dialog"
+import { LogoutButton } from "@/components/logout-button"
 
 export default async function BrandsPage() {
   const brands = await getBrandsAction()
@@ -13,11 +15,14 @@ export default async function BrandsPage() {
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
-        <div className="space-y-2">
-          <h1 className="text-4xl font-bold text-balance">
-            Select a <span className="gradient-text">Brand</span>
-          </h1>
-          <p className="text-muted-foreground text-lg">Choose which brand you'd like to manage</p>
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold text-balance">
+              Select a <span className="gradient-text">Brand</span>
+            </h1>
+            <p className="text-muted-foreground text-lg">Choose which brand you'd like to manage</p>
+          </div>
+          <LogoutButton />
         </div>
 
         {/* Brand Cards Grid */}

@@ -78,9 +78,18 @@ export async function GET(request: NextRequest) {
 
     if (!credentials) {
       logger.error({ brandId }, "No Instagram credentials found")
-      return NextResponse.redirect(
-        `${env.NEXTAUTH_URL}/dashboard/${brandId}/settings?error=no_credentials`
-      )
+
+      // Get brand to check if it's personal
+      const brand = await prisma.brand.findUnique({
+        where: { id: brandId },
+        select: { isPersonal: true },
+      })
+
+      const redirectPath = brand?.isPersonal
+        ? `/personal/settings?error=no_credentials`
+        : `/dashboard/${brandId}/settings?error=no_credentials`
+
+      return NextResponse.redirect(`${env.NEXTAUTH_URL}${redirectPath}`)
     }
 
     // Decrypt credentials
@@ -130,9 +139,18 @@ export async function GET(request: NextRequest) {
 
     if (!pages || pages.length === 0) {
       logger.warn("No Facebook pages found")
-      return NextResponse.redirect(
-        `${env.NEXTAUTH_URL}/dashboard/${brandId}/settings?error=no_pages_found`
-      )
+
+      // Get brand to check if it's personal
+      const brand = await prisma.brand.findUnique({
+        where: { id: brandId },
+        select: { isPersonal: true },
+      })
+
+      const redirectPath = brand?.isPersonal
+        ? `/personal/settings?error=no_pages_found`
+        : `/dashboard/${brandId}/settings?error=no_pages_found`
+
+      return NextResponse.redirect(`${env.NEXTAUTH_URL}${redirectPath}`)
     }
 
     logger.info({ pageCount: pages.length }, "Found Facebook pages, checking for Instagram connection")
@@ -167,9 +185,18 @@ export async function GET(request: NextRequest) {
 
     if (!selectedPage || !igData || !igData.instagram_business_account) {
       logger.warn("No page with Instagram Business Account found")
-      return NextResponse.redirect(
-        `${env.NEXTAUTH_URL}/dashboard/${brandId}/settings?error=no_instagram_account`
-      )
+
+      // Get brand to check if it's personal
+      const brand = await prisma.brand.findUnique({
+        where: { id: brandId },
+        select: { isPersonal: true },
+      })
+
+      const redirectPath = brand?.isPersonal
+        ? `/personal/settings?error=no_instagram_account`
+        : `/dashboard/${brandId}/settings?error=no_instagram_account`
+
+      return NextResponse.redirect(`${env.NEXTAUTH_URL}${redirectPath}`)
     }
 
     const page = selectedPage
@@ -249,9 +276,18 @@ export async function GET(request: NextRequest) {
       "✅ Successfully saved Instagram account with PAGE_ACCESS_TOKEN"
     )
 
-    return NextResponse.redirect(
-      `${env.NEXTAUTH_URL}/dashboard/${brandId}/settings?success=instagram_connected`
-    )
+    // Get brand to check if it's personal
+    const brand = await prisma.brand.findUnique({
+      where: { id: brandId },
+      select: { isPersonal: true },
+    })
+
+    // Redirect based on brand type
+    const redirectPath = brand?.isPersonal
+      ? `/personal/settings?success=instagram_connected`
+      : `/dashboard/${brandId}/settings?success=instagram_connected`
+
+    return NextResponse.redirect(`${env.NEXTAUTH_URL}${redirectPath}`)
   } catch (error: any) {
     logger.error({ error: error.message, stack: error.stack }, "Instagram OAuth error")
     return NextResponse.redirect(`${env.NEXTAUTH_URL}/brands?error=oauth_failed`)

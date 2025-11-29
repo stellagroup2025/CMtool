@@ -139,6 +139,27 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Smooth page transitions */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Optimize rendering performance */
+  main {
+    will-change: contents;
+    contain: layout style paint;
+  }
+
+  /* Better link transitions */
+  a {
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+
+  /* Smoother button interactions */
+  button {
+    transition: all 0.15s ease;
+  }
 }
 
 /* Custom gradient utilities for accent elements */
@@ -152,5 +173,21 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Page transition utilities */
+  .page-transition {
+    animation: fadeIn 0.2s ease-in;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }

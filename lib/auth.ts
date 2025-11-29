@@ -14,11 +14,20 @@ declare module "next-auth" {
     user: {
       id: string
       role?: string
+      mode?: string
     } & DefaultSession["user"]
   }
 
   interface User {
     role?: string
+    mode?: string
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id?: string
+    mode?: string
   }
 }
 
@@ -94,6 +103,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     async jwt({ token, user }) {
+      // On first sign in, user object is available
       if (user) {
         token.id = user.id
       }
@@ -102,9 +112,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string
-
-        // Optionally add user's default role or brand memberships
-        // This can be extended to include more user-specific data
       }
       return session
     },

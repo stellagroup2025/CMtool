@@ -32,9 +32,17 @@ const envSchema = z.object({
   PUSHER_CLUSTER: z.string().optional(),
   ABLY_KEY: z.string().optional(),
 
-  // AI (OpenAI or Anthropic)
+  // AI (OpenAI, Anthropic, or Gemini)
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  GOOGLE_GEMINI_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(), // Alias for GOOGLE_GEMINI_API_KEY
+
+  // Unsplash (for stock images)
+  UNSPLASH_ACCESS_KEY: z.string().optional(),
+
+  // News API
+  NEWSAPI_AI_KEY: z.string().optional(),
 
   // Encryption
   ENCRYPTION_KEY: z.string().min(40), // Base64 encoded 32 bytes
@@ -57,7 +65,12 @@ const envSchema = z.object({
 // Validate environment variables
 function validateEnv() {
   try {
-    return envSchema.parse(process.env)
+    const parsed = envSchema.parse(process.env)
+    // Create alias for backward compatibility
+    if (parsed.GOOGLE_GEMINI_API_KEY && !parsed.GEMINI_API_KEY) {
+      parsed.GEMINI_API_KEY = parsed.GOOGLE_GEMINI_API_KEY
+    }
+    return parsed
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.error("❌ Invalid environment variables:")

@@ -136,6 +136,11 @@ async function markImagesAsUsed(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
+
+    // Log the incoming request for debugging
+    console.log("========== INSTAGRAM PUBLISH REQUEST ==========")
+    console.log("Request body:", JSON.stringify(body, null, 2))
+
     const data = publishSchema.parse(body)
 
     // Get social account
@@ -276,12 +281,15 @@ export async function POST(req: NextRequest) {
     })
   } catch (error: any) {
     if (error instanceof z.ZodError) {
+      console.error("========== VALIDATION ERROR ==========")
+      console.error("Zod errors:", JSON.stringify(error.errors, null, 2))
       return NextResponse.json(
         { error: "Invalid request data", details: error.errors },
         { status: 400 }
       )
     }
 
+    console.error("========== INTERNAL ERROR ==========")
     console.error("Error publishing content:", error)
     return NextResponse.json(
       { error: "Internal server error" },

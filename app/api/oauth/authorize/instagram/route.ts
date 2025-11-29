@@ -47,7 +47,22 @@ export async function GET(request: NextRequest) {
   }
 
   // Decrypt credentials
-  const appId = decrypt(credentials.clientId)
+  let appId: string
+  let appSecret: string
+
+  try {
+    appId = decrypt(credentials.clientId)
+    appSecret = decrypt(credentials.clientSecret)
+  } catch (decryptError) {
+    console.error("Error decrypting Instagram credentials:", decryptError)
+    return NextResponse.json(
+      {
+        error: "Invalid credentials",
+        message: "Your Instagram credentials are corrupted. Please reconnect your account in Settings.",
+      },
+      { status: 500 }
+    )
+  }
   const redirectUri = `${env.NEXTAUTH_URL}/api/oauth/callback/instagram`
 
   // Instagram uses Facebook OAuth - request all Instagram permissions

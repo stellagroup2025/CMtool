@@ -33,7 +33,28 @@ export default function LoginPage() {
         toast.error("Invalid email or password")
       } else {
         toast.success("Login successful!")
-        router.push("/brands")
+
+        // Get user mode to redirect accordingly
+        try {
+          const response = await fetch("/api/user/me")
+          const userData = await response.json()
+
+          if (!userData.mode || userData.mode === null) {
+            // New user without mode - go to mode selection
+            router.push("/select-mode")
+          } else if (userData.mode === "PERSONAL") {
+            // Personal mode user - go to personal dashboard
+            router.push("/personal/dashboard")
+          } else {
+            // Agency mode user - go to brands
+            router.push("/brands")
+          }
+        } catch (error) {
+          // Fallback to brands if can't fetch user mode
+          console.error("Error fetching user mode:", error)
+          router.push("/brands")
+        }
+
         router.refresh()
       }
     } catch (error) {
@@ -46,7 +67,9 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setIsLoading(true)
     try {
-      await signIn("google", { callbackUrl: "/brands" })
+      // Google will handle the redirect after authentication
+      // We'll use middleware or callback to handle mode-based redirect
+      await signIn("google", { redirect: true })
     } catch (error) {
       toast.error("Google login failed")
       setIsLoading(false)

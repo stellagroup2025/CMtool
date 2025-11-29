@@ -567,7 +567,42 @@ export async function publishSingleImage(
     return containerResult
   }
 
-  // Step 2: Publish container
+  // Step 2: Wait for image processing (poll status)
+  // This is needed for external URLs like Unsplash
+  let isReady = false
+  let attempts = 0
+  const maxAttempts = 20 // 20 attempts * 2 seconds = 40 seconds max
+
+  while (!isReady && attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds
+
+    const statusResult = await getMediaContainerStatus(
+      containerResult.containerId!,
+      pageAccessToken
+    )
+
+    if (!statusResult.success) {
+      return statusResult
+    }
+
+    isReady = statusResult.isReady!
+    attempts++
+
+    logger.info({
+      containerId: containerResult.containerId,
+      attempts,
+      isReady
+    }, "Polling image container status")
+  }
+
+  if (!isReady) {
+    return {
+      success: false,
+      error: "Image processing timeout - Instagram is still downloading the image. Please try again in a few moments.",
+    }
+  }
+
+  // Step 3: Publish container
   return await publishMediaContainer(igUserId, pageAccessToken, containerResult.containerId!)
 }
 
